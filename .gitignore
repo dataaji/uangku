@@ -1,0 +1,12 @@
+# ── Rahasia: JANGAN diunggah, dibuat manual di server ──
+/inc/db.php
+/inc/google_config.php
+
+# ── Lokal / arsip / tooling ──
+/.claude/
+/_arsip_react_lama/
+/_seedtest.php
+*.log
+Thumbs.db
+.DS_Store
+desktop.ini

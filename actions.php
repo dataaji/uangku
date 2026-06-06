@@ -1,0 +1,274 @@
+<?php
+require_once __DIR__ . '/inc/db.php';
+require_once __DIR__ . '/inc/functions.php';
+require_once __DIR__ . '/inc/auth.php';
+$me = requireLogin($pdo);
+$U  = (int)$me['id'];   // user aktif — semua data dibatasi ke user ini
+
+// Keamanan: aksi pengubah data hanya via POST + verifikasi token CSRF
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); exit('Method Not Allowed'); }
+if (!hash_equals($_SESSION['csrf'] ?? '', $_POST['_csrf'] ?? '')) { http_response_code(403); exit('Permintaan ditolak (token tidak valid). Muat ulang halaman.'); }
+
+$action = $_POST['action'] ?? '';
+$back   = $_POST['back'] ?? 'index.php';
+// Hanya izinkan redirect ke path internal (cegah open redirect / header injection)
+function redirect($u){
+    if ($u==='') $u='index.php';
+    if ($u[0]==='?') { $u='index.php'.$u; }
+    elseif (preg_match('~^[a-z][a-z0-9+.\-]*:~i',$u) || strncmp($u,'//',2)===0 || strpbrk($u,"\r\n")!==false) { $u='index.php'; }
+    header("Location: $u"); exit;
+}
+function num($k){ return (float)preg_replace('/[^\d]/','',$_POST[$k]??'0'); }
+function str_($k){ return trim($_POST[$k]??''); }
+function logAng($pdo,$U,$kat,$aksi,$jml,$batas){ $pdo->prepare('INSERT INTO anggaran_log (user_id,kategori,aksi,jumlah,batas_baru) VALUES (?,?,?,?,?)')->execute([$U,$kat,$aksi,$jml,$batas]); }
+// Baca field komponen jadwal terpadu (tanggal mulai + auto ingatkan + frekuensi)
+function jadwalPost(){
+    $freq=$_POST['frekuensi']??'bulanan';
+    $valid=['harian','mingguan','bulanan','tahunan'];
+    if(!in_array($freq,$valid)) $freq='bulanan';
+    $emode=$_POST['selesai_mode']??'selamanya';                 // selamanya | tanggal
+    $selesai=($emode==='tanggal' && ($_POST['selesai_tgl']??''))?$_POST['selesai_tgl']:null;
+    return [
+        'mulai'   => ($_POST['mulai_tgl']??'')?:null,
+        'ingatkan'=> isset($_POST['ingatkan'])?1:0,
+        'freq'    => $freq,
+        'hari'    => max(0,min(6,(int)($_POST['freq_hari']??1))),
+        'tgl'     => max(1,min(31,(int)($_POST['freq_tgl']??1))),
+        'bulan'   => max(1,min(12,(int)($_POST['freq_bulan']??1))),
+        'selesai' => $selesai,
+    ];
+}
+
+switch ($action) {
+
+// ════════════ TRANSAKSI ════════════
+case 'add_transaksi': {
+    $tipe=$_POST['tipe']??'keluar'; $judul=str_('judul');
+    $kategori=$tipe==='masuk'?'Pemasukan':($_POST['kategori']??'Lainnya');
+    $nominal=num('jumlah'); $dompetId=(int)($_POST['dompet_id']??0);
+    $tanggal=$_POST['tanggal']??date('Y-m-d'); $catatan=str_('catatan');
+    // Jika dompet tidak dipilih / tidak ada → otomatis pakai "Tunai" (buat bila perlu)
+    if($dompetId){ $ck=$pdo->prepare('SELECT id FROM dompet WHERE id=? AND user_id=?'); $ck->execute([$dompetId,$U]); if(!$ck->fetchColumn()) $dompetId=0; }
+    if(!$dompetId){
+        $w=$pdo->prepare("SELECT id FROM dompet WHERE user_id=? AND nama='Tunai' LIMIT 1"); $w->execute([$U]); $dompetId=(int)$w->fetchColumn();
+        if(!$dompetId){ $w=$pdo->prepare('SELECT id FROM dompet WHERE user_id=? ORDER BY id LIMIT 1'); $w->execute([$U]); $dompetId=(int)$w->fetchColumn(); }
+        if(!$dompetId){ $pdo->prepare("INSERT INTO dompet (user_id,nama,emoji,saldo) VALUES (?,?,?,0)")->execute([$U,'Tunai','💵']); $dompetId=(int)$pdo->lastInsertId(); }
+    }
+    // Boleh pengeluaran walau saldo 0 (saldo jadi minus)
+    if($judul && $nominal>0){
+        $jumlah=$tipe==='masuk'?$nominal:-$nominal; $km=katMeta($pdo,$kategori);
+        $pdo->prepare('INSERT INTO transaksi (user_id,emoji,tint,judul,kategori,dompet_id,tanggal,jumlah,catatan) VALUES (?,?,?,?,?,?,?,?,?)')
+            ->execute([$U,$km['emoji'],$km['tint'],$judul,$kategori,$dompetId,$tanggal,$jumlah,$catatan]);
+        $pdo->prepare('UPDATE dompet SET saldo=saldo+? WHERE id=? AND user_id=?')->execute([$jumlah,$dompetId,$U]);
+    } redirect($back);
+}
+case 'delete_transaksi': {
+    $id=(int)$_POST['id']; $s=$pdo->prepare('SELECT * FROM transaksi WHERE id=? AND user_id=?'); $s->execute([$id,$U]); $tx=$s->fetch();
+    if($tx){ $pdo->prepare('UPDATE dompet SET saldo=saldo-? WHERE id=? AND user_id=?')->execute([$tx['jumlah'],$tx['dompet_id'],$U]);
+        $pdo->prepare('DELETE FROM transaksi WHERE id=? AND user_id=?')->execute([$id,$U]); } redirect($back);
+}
+
+// ════════════ TAGIHAN ════════════
+case 'add_tagihan': {
+    $nama=str_('nama'); $jenis=$_POST['jenis']??'langganan';
+    $jumlah=num('jumlah'); $total=num('total'); $tenor=0;
+    $emoji=$_POST['emoji']??'💡'; $tint=$_POST['tint']??'#f7ecd5'; $catatan=str_('catatan');
+    $j=jadwalPost();
+    $ingat = ($jenis==='langganan') ? 1 : ($j['ingatkan']?1:0);   // langganan selalu ingat; cicilan ikut tombol on/off
+    $tgl = in_array($j['freq'],['bulanan','tahunan']) ? $j['tgl'] : ($j['mulai']?(int)date('j',strtotime($j['mulai'])):1);
+    $berulang = ($jenis==='cicilan') ? 0 : 1;
+    if($jenis==='cicilan' && $jumlah>0 && $total>0) $tenor=(int)ceil($total/$jumlah);   // estimasi jumlah bulan
+    $desc = $jenis==='cicilan' ? ($tenor>0?"≈$tenor bulan":'cicilan') : '';
+    if($nama && ($jumlah>0 || ($jenis==='cicilan' && $total>0))){
+        $pdo->prepare('INSERT INTO tagihan (user_id,emoji,tint,nama,deskripsi,jumlah,tgl_jatuh_tempo,jenis,total,terbayar,catatan,berulang,tenor,mulai_tgl,ingatkan,frekuensi,freq_hari,freq_tgl,freq_bulan,selesai_tgl) VALUES (?,?,?,?,?,?,?,?,?,0,?,?,?,?,?,?,?,?,?,?)')
+            ->execute([$U,$emoji,$tint,$nama,$desc,$jumlah,$tgl,$jenis,$total,$catatan,$berulang,$tenor,$j['mulai'],$ingat,$j['freq'],$j['hari'],$j['tgl'],$j['bulan'],$j['selesai']]);
+    } redirect($back);
+}
+case 'edit_tagihan': {
+    $id=(int)$_POST['id']; $jenis=$_POST['jenis']??'langganan';
+    $jumlah=num('jumlah'); $total=num('total'); $tenor=0;
+    $j=jadwalPost();
+    $ingat = ($jenis==='langganan') ? 1 : ($j['ingatkan']?1:0);
+    $tgl = in_array($j['freq'],['bulanan','tahunan']) ? $j['tgl'] : ($j['mulai']?(int)date('j',strtotime($j['mulai'])):1);
+    $berulang = ($jenis==='cicilan') ? 0 : 1;
+    if($jenis==='cicilan' && $jumlah>0 && $total>0) $tenor=(int)ceil($total/$jumlah);
+    $desc = $jenis==='cicilan' ? ($tenor>0?"≈$tenor bulan":'cicilan') : '';
+    $pdo->prepare('UPDATE tagihan SET nama=?,deskripsi=?,jumlah=?,total=?,tenor=?,tgl_jatuh_tempo=?,catatan=?,berulang=?,emoji=?,mulai_tgl=?,ingatkan=?,frekuensi=?,freq_hari=?,freq_tgl=?,freq_bulan=?,selesai_tgl=? WHERE id=? AND user_id=?')
+        ->execute([str_('nama'),$desc,$jumlah,$total,$tenor,$tgl,str_('catatan'),$berulang,$_POST['emoji']??'💡',$j['mulai'],$ingat,$j['freq'],$j['hari'],$j['tgl'],$j['bulan'],$j['selesai'],$id,$U]);
+    redirect($back);
+}
+case 'delete_tagihan': { $pdo->prepare('DELETE FROM tagihan WHERE id=? AND user_id=?')->execute([(int)$_POST['id'],$U]); redirect($back); }
+case 'toggle_tagihan': {
+    $id=(int)$_POST['id']; $s=$pdo->prepare('SELECT * FROM tagihan WHERE id=? AND user_id=?'); $s->execute([$id,$U]); $b=$s->fetch();
+    if($b){
+        if($b['sudah_bayar'] && $b['berulang']) $pdo->prepare('UPDATE tagihan SET sudah_bayar=0 WHERE id=? AND user_id=?')->execute([$id,$U]);
+        else $pdo->prepare('UPDATE tagihan SET sudah_bayar=1-sudah_bayar WHERE id=? AND user_id=?')->execute([$id,$U]);
+    } redirect($back);
+}
+case 'bayar_cicilan': {
+    $id=(int)$_POST['id']; $bayar=num('bayar'); $s=$pdo->prepare('SELECT * FROM tagihan WHERE id=? AND user_id=?'); $s->execute([$id,$U]); $b=$s->fetch();
+    if($b && $bayar>0){ $baru=min($b['total'],$b['terbayar']+$bayar); $lunas=$baru>=$b['total']?1:0;
+        $pdo->prepare('UPDATE tagihan SET terbayar=?,sudah_bayar=? WHERE id=? AND user_id=?')->execute([$baru,$lunas,$id,$U]);
+    } redirect($back);
+}
+
+// ════════════ TUGAS (KERJAAN) ════════════
+case 'add_tugas': {
+    if(str_('judul')) $pdo->prepare('INSERT INTO tugas (user_id,judul,catatan,tanggal,waktu,prioritas) VALUES (?,?,?,?,?,?)')
+        ->execute([$U,str_('judul'),str_('catatan'),$_POST['tanggal']?:null,str_('waktu'),$_POST['prioritas']??'sedang']);
+    redirect($back);
+}
+case 'edit_tugas': {
+    $pdo->prepare('UPDATE tugas SET judul=?,catatan=?,tanggal=?,waktu=?,prioritas=? WHERE id=? AND user_id=?')
+        ->execute([str_('judul'),str_('catatan'),$_POST['tanggal']?:null,str_('waktu'),$_POST['prioritas']??'sedang',(int)$_POST['id'],$U]);
+    redirect($back);
+}
+case 'delete_tugas': { $pdo->prepare('DELETE FROM tugas WHERE id=? AND user_id=?')->execute([(int)$_POST['id'],$U]); redirect($back); }
+case 'toggle_tugas': { $pdo->prepare('UPDATE tugas SET selesai=1-selesai WHERE id=? AND user_id=?')->execute([(int)$_POST['id'],$U]); redirect($back); }
+
+// ════════════ TABUNGAN ════════════
+case 'add_tabungan': {
+    $judul=str_('judul'); $target=num('target');
+    $saldoAwal=num('saldo_awal'); $perBulan=num('per_bulan'); $catatan=str_('catatan');
+    $j=jadwalPost();
+    $tgl   = $j['selesai'];   // target tercapai = tanggal selesai (jika "Sampai tanggal")
+    $ingat = ($j['ingatkan'] && $j['freq']==='bulanan') ? $j['tgl'] : 0; // pengingat bulanan tgl X
+    if($judul && $target>0){
+        $bln=bulanKeTanggal($tgl);
+        if($perBulan<=0 && $bln>0) $perBulan=ceil(max(0,$target-$saldoAwal)/$bln);
+        if(!$catatan){
+            if($perBulan>0 && $bln>0) $catatan='Nabung '.rpShort($perBulan).'/bln → '.$bln.' bulan lagi';
+            elseif($perBulan>0) $catatan='Nabung '.rpShort($perBulan).'/bln';
+        }
+        $pdo->prepare('INSERT INTO tabungan (user_id,emoji,judul,tint,terkumpul,target,per_bulan,warna,catatan,target_tanggal,ingat_tgl,mulai_tgl,ingatkan,frekuensi,freq_hari,freq_tgl,freq_bulan,selesai_tgl) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+            ->execute([$U,$_POST['emoji']??'🎯',$judul,$_POST['tint']??'#e3ecf6',$saldoAwal,$target,$perBulan,$_POST['warna']??'#3b6fb0',$catatan,$tgl,$ingat,$j['mulai'],$j['ingatkan'],$j['freq'],$j['hari'],$j['tgl'],$j['bulan'],$j['selesai']]);
+    } redirect($back);
+}
+case 'edit_tabungan': {
+    $j=jadwalPost();
+    $tgl   = $j['selesai'];
+    $ingat = ($j['ingatkan'] && $j['freq']==='bulanan') ? $j['tgl'] : 0;
+    $pdo->prepare('UPDATE tabungan SET judul=?,target=?,per_bulan=?,catatan=?,emoji=?,target_tanggal=?,ingat_tgl=?,mulai_tgl=?,ingatkan=?,frekuensi=?,freq_hari=?,freq_tgl=?,freq_bulan=?,selesai_tgl=? WHERE id=? AND user_id=?')
+        ->execute([str_('judul'),num('target'),num('per_bulan'),str_('catatan'),$_POST['emoji']??'🎯',$tgl,$ingat,$j['mulai'],$j['ingatkan'],$j['freq'],$j['hari'],$j['tgl'],$j['bulan'],$j['selesai'],(int)$_POST['id'],$U]);
+    redirect($back);
+}
+case 'delete_tabungan': { $pdo->prepare('DELETE FROM tabungan WHERE id=? AND user_id=?')->execute([(int)$_POST['id'],$U]); redirect($back); }
+case 'tambah_dana': { if(num('dana')>0) $pdo->prepare('UPDATE tabungan SET terkumpul=terkumpul+?, terakhir_setor=CURDATE() WHERE id=? AND user_id=?')->execute([num('dana'),(int)$_POST['id'],$U]); redirect($back); }
+case 'kurangi_dana': { if(num('dana')>0) $pdo->prepare('UPDATE tabungan SET terkumpul=GREATEST(0,terkumpul-?) WHERE id=? AND user_id=?')->execute([num('dana'),(int)$_POST['id'],$U]); redirect($back); }
+
+// ════════════ ANGGARAN ════════════
+case 'add_anggaran': {
+    $kat=str_('kategori'); $batas=num('batas'); $on=isset($_POST['pakai_batas']);
+    $j=jadwalPost();
+    $freq = $on ? $j['freq'] : 'static';            // static = anggaran tetap (tanpa reset)
+    $selesai = ($on) ? $j['selesai'] : null;        // tanggal selesai → masuk histori
+    if(!$kat || $batas<=0) redirect($back);
+    if(anggaranKategoriAda($pdo,$kat)) redirect($back.'&err=dup');
+    $km=katMeta($pdo,$kat);
+    $pdo->prepare('INSERT INTO anggaran (user_id,emoji,kategori,tint,batas,bulan,tahun,periode,frekuensi,mulai_tgl,selesai_tgl,freq_hari,freq_tgl,freq_bulan,ingatkan,aktif) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,1)')
+        ->execute([$U,$km['emoji'],$kat,$km['tint'],$batas,(int)date('n'),(int)date('Y'),$freq,$freq,date('Y-m-d'),$selesai,$j['hari'],$j['tgl'],$j['bulan']]);
+    logAng($pdo,$U,$kat,'buat',$batas,$batas);
+    redirect($back);
+}
+case 'edit_anggaran': {
+    $id=(int)$_POST['id']; $kat=str_('kategori'); $batas=num('batas'); $on=isset($_POST['pakai_batas']);
+    $j=jadwalPost();
+    $freq = $on ? $j['freq'] : 'static';
+    $selesai = ($on) ? $j['selesai'] : null;
+    if($kat && anggaranKategoriAda($pdo,$kat,$id)) redirect($back.'&err=dup');
+    if($kat){ $km=katMeta($pdo,$kat);
+        $pdo->prepare('UPDATE anggaran SET kategori=?,emoji=?,tint=?,batas=?,frekuensi=?,selesai_tgl=?,freq_hari=?,freq_tgl=?,freq_bulan=?,aktif=1 WHERE id=? AND user_id=?')->execute([$kat,$km['emoji'],$km['tint'],$batas,$freq,$selesai,$j['hari'],$j['tgl'],$j['bulan'],$id,$U]);
+    } else $pdo->prepare('UPDATE anggaran SET batas=?,frekuensi=?,selesai_tgl=?,freq_hari=?,freq_tgl=?,freq_bulan=?,aktif=1 WHERE id=? AND user_id=?')->execute([$batas,$freq,$selesai,$j['hari'],$j['tgl'],$j['bulan'],$id,$U]);
+    redirect($back);
+}
+case 'delete_anggaran': { $pdo->prepare('DELETE FROM anggaran WHERE id=? AND user_id=?')->execute([(int)$_POST['id'],$U]); redirect($back); }
+case 'adjust_anggaran': {
+    $id=(int)$_POST['id']; $jml=num('jumlah'); $tipe=$_POST['tipe']??'tambah';
+    if($id && $jml>0){
+        if($tipe==='kurang') $pdo->prepare('UPDATE anggaran SET batas=GREATEST(0,batas-?) WHERE id=? AND user_id=?')->execute([$jml,$id,$U]);
+        else $pdo->prepare('UPDATE anggaran SET batas=batas+? WHERE id=? AND user_id=?')->execute([$jml,$id,$U]);
+        $a=$pdo->prepare('SELECT kategori,batas FROM anggaran WHERE id=? AND user_id=?'); $a->execute([$id,$U]); $r=$a->fetch();
+        if($r) logAng($pdo,$U,$r['kategori'],$tipe,$jml,$r['batas']);
+    } redirect($back);
+}
+
+// ════════════ CATATAN / AGENDA ════════════
+case 'add_catatan': {
+    $ulang=$_POST['ulang']??'tidak'; if(!in_array($ulang,['tidak','tahunan','bulanan','mingguan']))$ulang='tidak';
+    $lead=$_POST['ingat_lead']??'hari'; if(!in_array($lead,['hari','minggu','bulan']))$lead='hari';
+    if(str_('judul') && $_POST['tanggal'])
+        $pdo->prepare('INSERT INTO catatan (user_id,tanggal,judul,isi,warna,ingatkan,ulang,ingat_lead) VALUES (?,?,?,?,?,?,?,?)')
+            ->execute([$U,$_POST['tanggal'],str_('judul'),str_('isi'),$_POST['warna']??'#8a5fb0',isset($_POST['ingatkan'])?1:0,$ulang,$lead]);
+    redirect($back);
+}
+case 'edit_catatan': {
+    $ulang=$_POST['ulang']??'tidak'; if(!in_array($ulang,['tidak','tahunan','bulanan','mingguan']))$ulang='tidak';
+    $lead=$_POST['ingat_lead']??'hari'; if(!in_array($lead,['hari','minggu','bulan']))$lead='hari';
+    $pdo->prepare('UPDATE catatan SET judul=?,isi=?,tanggal=?,ingatkan=?,ulang=?,ingat_lead=? WHERE id=? AND user_id=?')
+        ->execute([str_('judul'),str_('isi'),$_POST['tanggal'],isset($_POST['ingatkan'])?1:0,$ulang,$lead,(int)$_POST['id'],$U]);
+    redirect($back);
+}
+case 'delete_catatan': { $pdo->prepare('DELETE FROM catatan WHERE id=? AND user_id=?')->execute([(int)$_POST['id'],$U]); redirect($back); }
+
+// ════════════ DOMPET ════════════
+case 'add_dompet': {
+    if(str_('nama')){
+        $ron=isset($_POST['reset_on']); $rtgl=$ron?max(1,min(31,(int)($_POST['reset_tgl']??1))):0; $ubaru=$ron?num('uang_baru'):0;
+        $rter=null; if($rtgl>0){ $eff=min($rtgl,(int)date('t')); if((int)date('j')>=$eff) $rter=date('Y-m-').str_pad($eff,2,'0',STR_PAD_LEFT); }
+        $pdo->prepare('INSERT INTO dompet (user_id,nama,emoji,saldo,reset_tgl,uang_baru,reset_terakhir) VALUES (?,?,?,?,?,?,?)')->execute([$U,str_('nama'),$_POST['emoji']??'💵',num('saldo'),$rtgl,$ubaru,$rter]);
+    } redirect($back);
+}
+case 'tambah_saldo': {
+    $id=(int)($_POST['dompet_id']??0); $jml=num('jumlah'); $tipe=$_POST['tipe']??'tambah';
+    $c=$pdo->prepare('SELECT COUNT(*) FROM dompet WHERE user_id=?'); $c->execute([$U]); $ada=(int)$c->fetchColumn();
+    if($ada===0) redirect($back.'&err=nodompet');
+    if($id && $jml>0){
+        if($tipe==='kurang') $pdo->prepare('UPDATE dompet SET saldo=GREATEST(0,saldo-?) WHERE id=? AND user_id=?')->execute([$jml,$id,$U]);
+        else $pdo->prepare('UPDATE dompet SET saldo=saldo+? WHERE id=? AND user_id=?')->execute([$jml,$id,$U]);
+    }
+    redirect($back);
+}
+case 'edit_dompet': {
+    $ron=isset($_POST['reset_on']); $rtgl=$ron?max(1,min(31,(int)($_POST['reset_tgl']??1))):0; $ubaru=$ron?num('uang_baru'):0;
+    $rter=null; if($rtgl>0){ $eff=min($rtgl,(int)date('t')); if((int)date('j')>=$eff) $rter=date('Y-m-').str_pad($eff,2,'0',STR_PAD_LEFT); }
+    $pdo->prepare('UPDATE dompet SET nama=?,emoji=?,saldo=?,reset_tgl=?,uang_baru=?,reset_terakhir=? WHERE id=? AND user_id=?')->execute([str_('nama'),$_POST['emoji']??'💵',num('saldo'),$rtgl,$ubaru,$rter,(int)$_POST['id'],$U]);
+    redirect($back);
+}
+case 'delete_dompet': { $pdo->prepare('DELETE FROM dompet WHERE id=? AND user_id=?')->execute([(int)$_POST['id'],$U]); redirect($back); }
+
+// ════════════ KATEGORI ════════════
+case 'add_kategori': {
+    if(str_('nama')) $pdo->prepare('INSERT INTO kategori (user_id,nama,emoji,tint,warna,tipe) VALUES (?,?,?,?,?,?)')
+        ->execute([$U,str_('nama'),$_POST['emoji']??'🏷️',$_POST['tint']??'#fbf6ec',$_POST['warna']??'#5c5345',$_POST['tipe']??'keluar']);
+    redirect($back);
+}
+case 'delete_kategori': { $pdo->prepare('DELETE FROM kategori WHERE id=? AND user_id=?')->execute([(int)$_POST['id'],$U]); redirect($back); }
+
+// ════════════ NOTIFIKASI ════════════
+case 'mark_notif': { $pdo->prepare('INSERT IGNORE INTO notif_dibaca (user_id,notif_key) VALUES (?,?)')->execute([$U,$_POST['key']??'']); redirect($back); }
+case 'mark_all_notif': {
+    foreach(getNotifs($pdo,(int)date('n'),(int)date('Y')) as $n)
+        $pdo->prepare('INSERT IGNORE INTO notif_dibaca (user_id,notif_key) VALUES (?,?)')->execute([$U,$n['key']]);
+    redirect($back);
+}
+
+// ════════════ PROFIL / AKUN ════════════
+case 'update_profil': {
+    $pdo->prepare('UPDATE users SET nama=?,email=?,avatar=? WHERE id=?')->execute([str_('nama'),str_('email'),$_POST['avatar']??'🧑',$U]);
+    redirect($back);
+}
+case 'update_password': {
+    $lama=$_POST['lama']??''; $baru=$_POST['baru']??'';
+    if(password_verify($lama,$me['password']) && strlen($baru)>=4)
+        $pdo->prepare('UPDATE users SET password=? WHERE id=?')->execute([password_hash($baru,PASSWORD_DEFAULT),$U]);
+    redirect($back.'&msg=pw');
+}
+case 'set_pin': {
+    $pin=preg_replace('/\D/','',$_POST['pin']??'');
+    $pdo->prepare('UPDATE users SET pin=? WHERE id=?')->execute([$pin?password_hash($pin,PASSWORD_DEFAULT):null,$U]);
+    redirect($back);
+}
+case 'toggle_dark': { $pdo->prepare('UPDATE users SET dark_mode=1-dark_mode WHERE id=?')->execute([$U]); redirect($back); }
+
+default: redirect($back);
+}
