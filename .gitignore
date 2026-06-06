@@ -2,6 +2,10 @@
 /inc/db.php
 /inc/google_config.php
 
+# ── File setup/DB (tidak perlu di hosting; jalankan sekali via phpMyAdmin) ──
+*.sql
+/CARA-PAKAI.txt
+
 # ── Lokal / arsip / tooling ──
 /.claude/
 /_arsip_react_lama/
