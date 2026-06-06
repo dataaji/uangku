@@ -1,0 +1,6 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/ledh8689/public_html/uangku.ledgerid.site
+    - /bin/cp -R * "$DEPLOYPATH/"
+    - /bin/cp -f .htaccess "$DEPLOYPATH/.htaccess"
