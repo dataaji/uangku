@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "site.ledgerid.uangku",
+    "sha256_cert_fingerprints": ["C2:33:5C:DC:B2:BF:92:E9:F5:20:FA:3E:96:96:2B:CD:E8:C6:2C:1C:38:14:5F:C3:9E:3C:DF:A9:E1:2B:EB:65"]
+  }
+}]

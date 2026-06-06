@@ -4,3 +4,5 @@ deployment:
     - export DEPLOYPATH=/home/ledh8689/public_html/uangku.ledgerid.site
     - /bin/cp -R * "$DEPLOYPATH/"
     - /bin/cp -f .htaccess "$DEPLOYPATH/.htaccess"
+    - /bin/mkdir -p "$DEPLOYPATH/.well-known"
+    - /bin/cp -f .well-known/assetlinks.json "$DEPLOYPATH/.well-known/assetlinks.json"
