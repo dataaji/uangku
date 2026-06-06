@@ -162,6 +162,19 @@ function pickEmoji(grpEl, em, tint, warna){
   var fw=grpEl.parentElement.querySelector('input[data-warna]'); if(fw&&warna)fw.value=warna;
 }
 if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+// Kunci menu bawah ke area terlihat (atasi bar alamat HP yang bikin menu "turun")
+(function(){
+  var bn=document.getElementById('bnav'), vv=window.visualViewport;
+  if(!bn||!vv) return;
+  function fix(){
+    if(getComputedStyle(bn).display==='none'){ bn.style.top=''; bn.style.bottom=''; return; }
+    bn.style.bottom='auto';
+    bn.style.top=Math.round(vv.offsetTop + vv.height - bn.offsetHeight)+'px';
+  }
+  vv.addEventListener('resize',fix); vv.addEventListener('scroll',fix);
+  window.addEventListener('orientationchange',fix);
+  setTimeout(fix,60); fix();
+})();
 </script>
 </body>
 </html>
