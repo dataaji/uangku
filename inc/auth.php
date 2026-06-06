@@ -50,7 +50,6 @@ function currentUser($pdo) {
 
 // Wajib login — kalau belum, lempar ke login.php
 function requireLogin($pdo) {
-    seedDefaultUser($pdo);
     $u = currentUser($pdo);
     if (!$u) { header('Location: login.php'); exit; }
     return $u;
