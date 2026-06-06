@@ -266,8 +266,47 @@ case 'mark_all_notif': {
 }
 
 // ════════════ PROFIL / AKUN ════════════
+case 'restore_data': {
+    if(empty($_FILES['file']['tmp_name']) || !is_uploaded_file($_FILES['file']['tmp_name'])) redirect($back.'&msg=restorefail');
+    $d=json_decode(file_get_contents($_FILES['file']['tmp_name']),true);
+    if(!is_array($d) || ($d['_app']??'')!=='uangku') redirect($back.'&msg=restorefail');
+    $tables=['dompet','kategori','transaksi','anggaran','anggaran_log','tabungan','tagihan','tugas','catatan'];
+    try{
+        $pdo->beginTransaction();
+        foreach($tables as $t) $pdo->prepare("DELETE FROM `$t` WHERE user_id=?")->execute([$U]);
+        foreach($tables as $t){
+            if(empty($d[$t]) || !is_array($d[$t])) continue;
+            foreach($d[$t] as $row){
+                if(!is_array($row)) continue;
+                $row['user_id']=$U;
+                $cols=array_keys($row); $ph=implode(',',array_fill(0,count($cols),'?'));
+                $colSql=implode(',',array_map(fn($c)=>"`$c`",$cols));
+                $pdo->prepare("INSERT INTO `$t` ($colSql) VALUES ($ph)")->execute(array_values($row));
+            }
+        }
+        $pdo->commit();
+        redirect($back.'&msg=restoreok');
+    }catch(Throwable $e){ if($pdo->inTransaction())$pdo->rollBack(); redirect($back.'&msg=restorefail'); }
+}
 case 'update_profil': {
-    $pdo->prepare('UPDATE users SET nama=?,email=?,avatar=? WHERE id=?')->execute([str_('nama'),str_('email'),$_POST['avatar']??'🧑',$U]);
+    $cur=$_POST['currency']??'Rp'; if(!in_array($cur,['Rp','$','€','£','¥','RM','S$','฿'])) $cur='Rp';
+    // Upload foto profil (opsional)
+    if(!empty($_FILES['foto']['tmp_name']) && is_uploaded_file($_FILES['foto']['tmp_name'])){
+        if($_FILES['foto']['size']<=2*1024*1024){
+            $info=@getimagesize($_FILES['foto']['tmp_name']);
+            $extMap=[IMAGETYPE_JPEG=>'jpg',IMAGETYPE_PNG=>'png',IMAGETYPE_WEBP=>'webp'];
+            if($info && isset($extMap[$info[2]])){
+                $dir=__DIR__.'/uploads/avatars'; if(!is_dir($dir)) @mkdir($dir,0755,true);
+                $fn='u'.$U.'_'.bin2hex(random_bytes(6)).'.'.$extMap[$info[2]];
+                if(@move_uploaded_file($_FILES['foto']['tmp_name'],$dir.'/'.$fn)){
+                    // hapus foto lama
+                    if(!empty($me['avatar_img']) && is_file($dir.'/'.$me['avatar_img'])) @unlink($dir.'/'.$me['avatar_img']);
+                    $pdo->prepare('UPDATE users SET avatar_img=? WHERE id=?')->execute([$fn,$U]);
+                }
+            }
+        }
+    }
+    $pdo->prepare('UPDATE users SET nama=?,email=?,avatar=?,currency=? WHERE id=?')->execute([str_('nama'),str_('email'),$_POST['avatar']??'🧑',$cur,$U]);
     redirect($back);
 }
 case 'update_password': {

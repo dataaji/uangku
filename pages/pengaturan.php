@@ -3,24 +3,35 @@ $dompet=getDompet($pdo);
 $kategori=getKategori($pdo);
 $punyaPin=!empty($me['pin']);
 topbar('Pengaturan', 'Akun & preferensi', $notifs, 'pengaturan');
+$msg=$_GET['msg']??'';
 ?>
+<?php if($msg==='restoreok'): ?><div class="card" style="padding:12px 16px;margin-bottom:16px;background:var(--greenT);color:var(--green);font-weight:600;font-size:13px">✓ Data berhasil dipulihkan dari backup.</div><?php endif; ?>
+<?php if($msg==='restorefail'): ?><div class="card" style="padding:12px 16px;margin-bottom:16px;background:var(--redT);color:var(--red);font-weight:600;font-size:13px">⚠️ Restore gagal — pastikan file backup .json benar.</div><?php endif; ?>
 
 <div class="grid-fit">
   <!-- Kolom 1: Profil & keamanan -->
   <div>
     <div class="eyebrow">Profil</div>
     <div class="card" style="padding:18px;margin-bottom:22px">
-      <form method="post" action="actions.php">
+      <form method="post" action="actions.php" enctype="multipart/form-data">
         <input type="hidden" name="action" value="update_profil"><input type="hidden" name="back" value="?page=pengaturan">
         <input type="hidden" name="avatar" data-emoji id="pf-avatar" value="<?= e($me['avatar']) ?>">
         <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
-          <div class="cat" style="width:60px;height:60px;border-radius:18px;background:var(--terra);font-size:30px;color:#fff" id="pf-prev"><?= e($me['avatar']) ?></div>
+          <div class="cat" id="pf-prev" style="width:60px;height:60px;border-radius:18px;background:var(--terra);font-size:30px;color:#fff;overflow:hidden;background-size:cover;background-position:center;<?= $me['avatar_img']?'background-image:url(uploads/avatars/'.e($me['avatar_img']).'?t='.time().')':'' ?>"><?= $me['avatar_img']?'':e($me['avatar']) ?></div>
           <div style="font-size:12px;color:var(--soft)">Pilih avatar:<div class="emoji-pick" style="margin-top:6px">
-            <?php foreach(['🧑','👩','👨','🧔','👧','🦊','🐱','🐼'] as $av): ?><div class="ei <?= $av===$me['avatar']?'on':'' ?>" style="width:38px;height:38px;font-size:18px;border-color:<?= $av===$me['avatar']?'var(--terra)':'var(--line)' ?>" onclick="document.getElementById('pf-avatar').value='<?= $av ?>';document.getElementById('pf-prev').textContent='<?= $av ?>';this.parentElement.querySelectorAll('.ei').forEach(x=>x.style.borderColor='var(--line)');this.style.borderColor='var(--terra)'"><?= $av ?></div><?php endforeach; ?>
+            <?php foreach(['🧑','👩','👨','🧔','👧','🦊','🐱','🐼'] as $av): ?><div class="ei <?= $av===$me['avatar']?'on':'' ?>" style="width:38px;height:38px;font-size:18px;border-color:<?= $av===$me['avatar']?'var(--terra)':'var(--line)' ?>" onclick="document.getElementById('pf-avatar').value='<?= $av ?>';document.getElementById('pf-prev').style.backgroundImage='';document.getElementById('pf-prev').textContent='<?= $av ?>';this.parentElement.querySelectorAll('.ei').forEach(x=>x.style.borderColor='var(--line)');this.style.borderColor='var(--terra)'"><?= $av ?></div><?php endforeach; ?>
           </div></div>
         </div>
+        <div class="field"><label>Foto profil (opsional · JPG/PNG/WebP, maks 2MB)</label><input type="file" name="foto" accept="image/jpeg,image/png,image/webp"></div>
         <div class="field"><label>Nama</label><input type="text" name="nama" value="<?= e($me['nama']) ?>" required></div>
         <div class="field"><label>Email</label><input type="email" name="email" value="<?= e($me['email']) ?>" required></div>
+        <div class="field"><label>Mata uang</label>
+          <select name="currency">
+            <?php $curs=['Rp'=>'Rupiah (Rp)','$'=>'Dollar ($)','€'=>'Euro (€)','£'=>'Pound (£)','¥'=>'Yen (¥)','RM'=>'Ringgit (RM)','S$'=>'Dollar Singapura (S$)','฿'=>'Baht (฿)'];
+            $curNow=$me['currency']??'Rp';
+            foreach($curs as $sym=>$lbl): ?><option value="<?= e($sym) ?>" <?= $curNow===$sym?'selected':'' ?>><?= e($lbl) ?></option><?php endforeach; ?>
+          </select>
+        </div>
         <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:13px;font-weight:800">Simpan Profil</button>
       </form>
     </div>
@@ -64,6 +75,22 @@ topbar('Pengaturan', 'Akun & preferensi', $notifs, 'pengaturan');
         <div style="flex:1"><div style="font-size:14.5px;font-weight:600;color:var(--red)">Keluar / Logout</div></div>
         <?= icon('chevR',18,'var(--muted)') ?>
       </a>
+    </div>
+
+    <div class="eyebrow">Data</div>
+    <div class="card" style="overflow:hidden">
+      <a href="backup.php" class="row">
+        <div class="cat" style="width:38px;height:38px;border-radius:12px;background:var(--greenT);color:var(--green)"><?= icon('export',18,'var(--green)') ?></div>
+        <div style="flex:1"><div style="font-size:14.5px;font-weight:600">Backup data</div><div style="font-size:12px;color:var(--soft);margin-top:1px">Unduh semua datamu (file .json)</div></div>
+        <?= icon('chevR',18,'var(--muted)') ?>
+      </a>
+      <form method="post" action="actions.php" enctype="multipart/form-data" class="row" style="border-top:1px solid var(--line);gap:10px;flex-wrap:wrap" data-confirm="Restore akan MENGGANTI seluruh datamu saat ini dengan isi file backup. Lanjutkan?" data-confirm-icon="♻️" data-confirm-ok="Ya, restore">
+        <input type="hidden" name="action" value="restore_data"><input type="hidden" name="back" value="?page=pengaturan">
+        <div class="cat" style="width:38px;height:38px;border-radius:12px;background:var(--blueT);color:var(--blue);font-size:18px">♻️</div>
+        <div style="flex:1;min-width:160px"><div style="font-size:14.5px;font-weight:600">Restore data</div><div style="font-size:12px;color:var(--soft);margin-top:1px">Pulihkan dari file backup .json</div></div>
+        <input type="file" name="file" accept="application/json,.json" required style="font-size:12px;max-width:180px">
+        <button class="btn btn-ghost btn-sm">Restore</button>
+      </form>
     </div>
   </div>
 

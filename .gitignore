@@ -14,3 +14,7 @@
 Thumbs.db
 .DS_Store
 desktop.ini
+
+# Foto profil yang diupload (jangan ikut repo)
+/uploads/avatars/*
+!/uploads/avatars/.gitkeep

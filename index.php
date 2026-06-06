@@ -4,6 +4,7 @@ require_once __DIR__ . '/inc/functions.php';
 require_once __DIR__ . '/inc/icons.php';
 require_once __DIR__ . '/inc/auth.php';
 $me = requireLogin($pdo);
+$GLOBALS['UANGKU_CUR'] = $me['currency'] ?? 'Rp';
 
 $bulan = (int)($_GET['bulan'] ?? date('n'));
 $tahun = (int)($_GET['tahun'] ?? date('Y'));
@@ -66,7 +67,7 @@ $BNAV = [['beranda','Beranda','home'],['transaksi','Analisa','chart'],['kalender
     <button class="sb-add" onclick="openModal('m-tx')"><?= icon('plus',18,'#fff',2.5) ?><span>Tambah Transaksi</span></button>
     <div style="display:flex;align-items:center;gap:6px;margin-top:8px">
       <a href="?page=pengaturan" class="sb-user" style="flex:1;margin-top:0">
-        <div class="av"><?= e($me['avatar']) ?></div>
+        <div class="av" style="<?= !empty($me['avatar_img'])?'background-image:url(uploads/avatars/'.e($me['avatar_img']).');background-size:cover;background-position:center':'' ?>"><?= !empty($me['avatar_img'])?'':e($me['avatar']) ?></div>
         <div class="nm"><?= e($me['nama']) ?></div>
       </a>
       <form method="get" action="logout.php" data-confirm="Yakin mau keluar / logout dari akun ini?" data-confirm-type="danger" data-confirm-icon="🚪" data-confirm-ok="Ya, keluar">

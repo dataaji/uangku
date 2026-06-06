@@ -7,6 +7,7 @@ require_once __DIR__ . '/inc/db.php';
 require_once __DIR__ . '/inc/functions.php';
 require_once __DIR__ . '/inc/auth.php';
 $me = requireLogin($pdo);
+$GLOBALS['UANGKU_CUR'] = $me['currency'] ?? 'Rp';
 
 $periode = $_GET['periode'] ?? 'bulan';
 $dari = $_GET['dari'] ?? ''; $sampai = $_GET['sampai'] ?? '';

@@ -3,7 +3,9 @@
 // Helper & Query — Uangku v2
 // ============================================================
 
-function rp($n){ return 'Rp' . number_format(round($n), 0, ',', '.'); }
+// Simbol mata uang aktif (di-set per user setelah login; default Rp)
+function curSym(){ return $GLOBALS['UANGKU_CUR'] ?? 'Rp'; }
+function rp($n){ return curSym() . number_format(round($n), 0, ',', '.'); }
 function rpShort($n){
     $neg=$n<0?'-':''; $n=abs((float)$n);
     if($n>=1e12)     $s=rtrim(rtrim(number_format($n/1e12,2,',','.'),'0'),',').'T';
@@ -11,7 +13,7 @@ function rpShort($n){
     elseif($n>=1e6)  $s=rtrim(rtrim(number_format($n/1e6,2,',','.'),'0'),',').'jt';
     elseif($n>=1e3)  $s=round($n/1e3).'rb';
     else             $s=number_format($n,0,',','.');
-    return 'Rp'.$neg.$s;
+    return curSym().$neg.$s;
 }
 function e($s){ return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
 
