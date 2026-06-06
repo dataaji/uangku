@@ -9,7 +9,7 @@ $bulan = (int)($_GET['bulan'] ?? date('n'));
 $tahun = (int)($_GET['tahun'] ?? date('Y'));
 $page  = $_GET['page'] ?? 'beranda';
 if ($page==='kerjaan') $page='kalender'; // kerjaan kini bagian dari kalender
-$valid = ['beranda','transaksi','kalender','anggaran','tabungan','tagihan','pengaturan'];
+$valid = ['beranda','transaksi','kalender','anggaran','tabungan','tagihan','pengaturan','tentang'];
 if (!in_array($page,$valid)) $page='beranda';
 
 $notifs = getNotifs($pdo,$bulan,$tahun);

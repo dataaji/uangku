@@ -58,6 +58,17 @@ function angCard($b,$periodeOpt,$isHist=false){ global $pdo;
   <div class="card" style="padding:12px 16px;margin-bottom:16px;background:var(--redT);border-color:#f3c0c0;color:var(--red);font-weight:600;font-size:13px">⚠️ Belum ada dompet. Tambah dompet dulu sebelum menambah saldo.</div>
 <?php endif; ?>
 
+<?php $warn=array_values(array_filter($aktifAll,fn($b)=>$b['pct']>=80)); if($warn): ?>
+<div class="card" style="padding:14px 18px;margin-bottom:18px;border-left:5px solid var(--red);background:linear-gradient(var(--card),var(--redT))">
+  <div style="font-weight:800;font-size:13.5px;color:var(--red);margin-bottom:8px">⚠️ Perhatian Anggaran — <?= count($warn) ?> kategori perlu dicek</div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px">
+    <?php foreach($warn as $b): $over=$b['lewat']; ?>
+      <span class="pill" style="background:<?= $over?'var(--redT)':'var(--amberT)' ?>;color:<?= $over?'var(--red)':'var(--amber)' ?>"><?= $b['emoji']?:katMeta($pdo,$b['kategori'])['emoji'] ?> <?= e($b['kategori']) ?> · <?= round($b['pct']) ?>%<?= $over?' (lewat)':'' ?></span>
+    <?php endforeach; ?>
+  </div>
+</div>
+<?php endif; ?>
+
 <!-- ===== DOMPET (di atas anggaran) ===== -->
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap">
   <div class="eyebrow" style="margin:0">💼 Dompet Saya</div>

@@ -4,16 +4,22 @@ $periode=$_GET['periode']??'bulan';
 $limit=max(1,(int)($_GET['limit']??10));   // jumlah baris histori: 5/10/50/100/custom
 $dari=$_GET['dari']??''; $sampai=$_GET['sampai']??'';   // filter rentang tanggal (list)
 $kat=$_GET['kat']??'';                                   // filter kategori (histori)
+$q=trim($_GET['q']??'');                                 // pencarian teks
 $hl=$_GET['hl']??'';                                     // sorot kategori (flash)
 [$pa,$pb,$plabel]=periodeRange($periode);
 $txAll=getTransaksi($pdo,$filter,$dari?:null,$sampai?:null);
 if($kat) $txAll=array_values(array_filter($txAll,fn($t)=>$t['kategori']===$kat));
+if($q!==''){ $ql=mb_strtolower($q); $txAll=array_values(array_filter($txAll,fn($t)=>mb_strpos(mb_strtolower(($t['judul']??'').' '.($t['kategori']??'').' '.($t['dompet_nama']??'')),$ql)!==false)); }
 $katList=array_values(array_unique(array_column(getTransaksi($pdo,'semua'),'kategori')));
 $tx=array_slice($txAll,0,$limit);            // hanya tampilkan N teratas
 // ringkasan untuk rentang tanggal (jika dipakai)
 $rangeRing=($dari&&$sampai)?getRingkasan($pdo,$dari,$sampai):null;
 $all=getTransaksi($pdo,'semua');
 $ring=getRingkasan($pdo,$pa,$pb);
+// Perbandingan bulan ini vs bulan lalu
+$cmpCur =getRingkasan($pdo,date('Y-m-01'),date('Y-m-t'));
+$cmpPrev=getRingkasan($pdo,date('Y-m-01',strtotime('first day of -1 month')),date('Y-m-t',strtotime('first day of -1 month')));
+$pctChg=function($cur,$prev){ if($prev<=0) return $cur>0?100:0; return round(($cur-$prev)/$prev*100); };
 $spend=getSpendKategori($pdo,$pa,$pb);
 $spendTotal=array_sum(array_column($spend,'total'));
 $trend=getTrend($pdo,$bulan,$tahun,$periode==='tahun'?'tahun':'bulan');
@@ -149,6 +155,28 @@ topbar('Analisa', count($all).' transaksi · ringkasan semua menu', $notifs, 'tr
   <div class="card" style="padding:16px 18px"><div style="font-size:12px;font-weight:700;color:var(--soft)">⚖️ Selisih</div><div style="font-family:var(--serif);font-size:22px;font-weight:600;color:<?= $sel>=0?'var(--green)':'var(--red)' ?>;margin-top:6px"><?= ($sel>=0?'+':'−').rpShort(abs($sel)) ?></div><div style="font-size:11px;color:var(--muted);margin-top:2px"><?= $sel>=0?'surplus':'defisit' ?></div></div>
 </div>
 
+<!-- Perbandingan bulan ini vs bulan lalu -->
+<?php
+$cmpRow=function($label,$cur,$prev,$emoji) use($pctChg){
+  $chg=$pctChg($cur,$prev); $naik=$chg>=0;
+  // untuk pengeluaran, naik = jelek (merah); untuk pemasukan, naik = bagus (hijau)
+  ?>
+  <div class="card" style="padding:14px 16px">
+    <div style="font-size:12px;font-weight:700;color:var(--soft)"><?= $emoji ?> <?= $label ?></div>
+    <div style="font-family:var(--serif);font-size:20px;font-weight:600;margin-top:4px"><?= rpShort($cur) ?></div>
+    <div style="font-size:11.5px;font-weight:700;margin-top:3px;color:<?= $chg==0?'var(--muted)':($naik?'var(--green)':'var(--red)') ?>">
+      <?= $chg>0?'▲ +':($chg<0?'▼ ':'• ') ?><?= abs($chg) ?>% <span style="color:var(--muted);font-weight:600">vs bln lalu (<?= rpShort($prev) ?>)</span>
+    </div>
+  </div>
+<?php };
+?>
+<div class="eyebrow" style="margin-bottom:10px">📅 Bulan Ini vs Bulan Lalu</div>
+<div class="grid-3" style="margin-bottom:24px">
+  <?php $cmpRow('Pemasukan',(float)$cmpCur['masuk'],(float)$cmpPrev['masuk'],'📥'); ?>
+  <?php $cmpRow('Pengeluaran',(float)$cmpCur['keluar'],(float)$cmpPrev['keluar'],'📤'); ?>
+  <?php $cmpRow('Selisih',(float)$cmpCur['masuk']-$cmpCur['keluar'],(float)$cmpPrev['masuk']-$cmpPrev['keluar'],'⚖️'); ?>
+</div>
+
 <!-- GRAFIK INTERAKTIF -->
 <div class="grid-fit" style="margin-bottom:24px">
   <!-- Donut interaktif -->
@@ -204,7 +232,17 @@ topbar('Analisa', count($all).' transaksi · ringkasan semua menu', $notifs, 'tr
 <!-- ====== HISTORI (filter list terpisah dari diagram) ====== -->
 <div class="sec" data-sec="histori">
 <div class="eyebrow" id="histori" style="margin-bottom:12px">📜 Histori Transaksi</div>
-<?php $qbase="?page=transaksi&periode=$periode"; $dq=($dari?"&dari=$dari":'').($sampai?"&sampai=$sampai":'').($kat?'&kat='.urlencode($kat):''); ?>
+<?php $qbase="?page=transaksi&periode=$periode"; $dq=($dari?"&dari=$dari":'').($sampai?"&sampai=$sampai":'').($kat?'&kat='.urlencode($kat):'').($q!==''?'&q='.urlencode($q):''); ?>
+
+<!-- Pencarian transaksi -->
+<form method="get" action="index.php" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap" onsubmit="saveScroll()">
+  <input type="hidden" name="page" value="transaksi"><input type="hidden" name="periode" value="<?= e($periode) ?>"><input type="hidden" name="filter" value="<?= e($filter) ?>"><input type="hidden" name="limit" value="<?= (int)$limit ?>">
+  <?php if($dari): ?><input type="hidden" name="dari" value="<?= e($dari) ?>"><?php endif; ?><?php if($sampai): ?><input type="hidden" name="sampai" value="<?= e($sampai) ?>"><?php endif; ?>
+  <input type="text" name="q" value="<?= e($q) ?>" placeholder="🔍 Cari nama/kategori/dompet…" style="flex:1;min-width:180px;padding:9px 13px;border:1px solid var(--line);border-radius:11px;background:var(--card);color:var(--ink);font-size:13px;outline:none">
+  <button class="btn btn-dark btn-sm">Cari</button>
+  <?php if($q!==''): ?><a href="<?= $qbase.($dari?"&dari=$dari":'').($sampai?"&sampai=$sampai":'').($kat?'&kat='.urlencode($kat):'') ?>&filter=<?= $filter ?>&limit=<?= $limit ?>#histori" class="btn btn-ghost btn-sm">Reset</a><?php endif; ?>
+</form>
+<?php if($q!==''): ?><div style="font-size:12px;color:var(--soft);margin-bottom:10px">Hasil pencarian "<b><?= e($q) ?></b>": <?= count($txAll) ?> transaksi</div><?php endif; ?>
 <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
     <?php foreach(['semua'=>'Semua','masuk'=>'Pemasukan','keluar'=>'Pengeluaran'] as $f=>$lbl): ?>

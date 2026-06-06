@@ -54,6 +54,11 @@ topbar('Pengaturan', 'Akun & preferensi', $notifs, 'pengaturan');
         fetch('actions.php',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'action=toggle_dark&_csrf='+encodeURIComponent(window.CSRF||'')}).catch(function(){});
       }
       </script>
+      <a href="?page=tentang" class="row" style="border-top:1px solid var(--line)">
+        <div class="cat" style="width:38px;height:38px;border-radius:12px;background:var(--card2);color:var(--terra)">ℹ️</div>
+        <div style="flex:1"><div style="font-size:14.5px;font-weight:600">Tentang &amp; Bantuan</div><div style="font-size:12px;color:var(--soft);margin-top:1px">Panduan singkat memakai aplikasi</div></div>
+        <?= icon('chevR',18,'var(--muted)') ?>
+      </a>
       <a href="logout.php" class="row" style="border-top:1px solid var(--line)">
         <div class="cat" style="width:38px;height:38px;border-radius:12px;background:var(--redT);color:var(--red)"><?= icon('lock',19,'var(--red)') ?></div>
         <div style="flex:1"><div style="font-size:14.5px;font-weight:600;color:var(--red)">Keluar / Logout</div></div>
