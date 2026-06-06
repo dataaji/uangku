@@ -63,7 +63,6 @@ if (currentUser($pdo)) { header('Location: index.php'); exit; }
     <div class="field"><label>Password</label><input type="password" name="password" placeholder="••••••••" required></div>
     <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:15px;font-size:16px;font-weight:800;margin-top:6px">Masuk</button>
   </form>
-  <div class="hint">Akun uji coba:<br><b>budi@email.com</b> / <b>uangku123</b></div>
 </div>
 </body>
 </html>
