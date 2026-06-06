@@ -228,6 +228,19 @@ case 'tambah_saldo': {
     }
     redirect($back);
 }
+case 'transfer_saldo': {
+    $from=(int)($_POST['from_id']??0); $to=(int)($_POST['to_id']??0); $jml=num('jumlah');
+    if($from && $to && $from!==$to && $jml>0){
+        $s=$pdo->prepare('SELECT saldo FROM dompet WHERE id=? AND user_id=?');
+        $s->execute([$from,$U]); $fromOk=$s->fetchColumn();
+        $s->execute([$to,$U]);   $toOk=$s->fetchColumn();
+        if($fromOk!==false && $toOk!==false){
+            $pdo->prepare('UPDATE dompet SET saldo=GREATEST(0,saldo-?) WHERE id=? AND user_id=?')->execute([$jml,$from,$U]);
+            $pdo->prepare('UPDATE dompet SET saldo=saldo+? WHERE id=? AND user_id=?')->execute([$jml,$to,$U]);
+        }
+    }
+    redirect($back);
+}
 case 'edit_dompet': {
     $ron=isset($_POST['reset_on']); $rtgl=$ron?max(1,min(31,(int)($_POST['reset_tgl']??1))):0; $ubaru=$ron?num('uang_baru'):0;
     $rter=null; if($rtgl>0){ $eff=min($rtgl,(int)date('t')); if((int)date('j')>=$eff) $rter=date('Y-m-').str_pad($eff,2,'0',STR_PAD_LEFT); }

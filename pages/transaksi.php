@@ -101,6 +101,8 @@ topbar('Analisa', count($all).' transaksi · ringkasan semua menu', $notifs, 'tr
     <button class="btn btn-ghost btn-sm" style="flex:1;justify-content:center" onclick="lapAll(false)">Kosongkan</button>
   </div>
   <button class="btn btn-primary" style="width:100%;justify-content:center;padding:14px;font-weight:800;margin-top:12px" onclick="unduhLaporan()"><?= icon('export',16,'#fff') ?> Unduh PDF</button>
+  <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:12px;font-weight:800;margin-top:8px" onclick="unduhExcel()"><?= icon('export',16) ?> Unduh Excel/CSV (transaksi)</button>
+  <div style="font-size:11px;color:var(--muted);margin-top:6px;text-align:center">Excel = daftar transaksi sesuai periode di atas.</div>
 </div></div></div>
 
 <!-- RINGKASAN SEMUA MENU -->
@@ -291,20 +293,26 @@ var TSERIES=<?= json_encode($tseries) ?>;
 function rupiah(n){return 'Rp'+Math.round(n).toLocaleString('id-ID');}
 function lapAll(v){document.querySelectorAll('.lap-cb').forEach(function(c){c.checked=v;});}
 function lapPeriodeChange(){document.getElementById('lap-range').style.display=document.getElementById('lap-periode').value==='custom'?'block':'none';}
+function lapQuery(){ // bangun query periode dari pilihan modal; null jika tidak valid
+  var p=document.getElementById('lap-periode').value;
+  if(p===''){ return 'periode=<?= e($periode) ?><?= $dari?'&dari='.e($dari):'' ?><?= $sampai?'&sampai='.e($sampai):'' ?>'; }
+  if(p==='custom'){
+    var d=document.getElementById('lap-dari').value, s=document.getElementById('lap-sampai').value;
+    if(!d||!s){alert('Isi tanggal Dari dan Sampai untuk rentang khusus.');return null;}
+    if(d>s){var t=d;d=s;s=t;}
+    return 'dari='+d+'&sampai='+s;
+  }
+  return 'periode='+p;
+}
 function unduhLaporan(){
   var sel=Array.prototype.slice.call(document.querySelectorAll('.lap-cb:checked')).map(function(c){return c.value;});
   if(!sel.length){alert('Pilih minimal satu bagian laporan.');return;}
-  var p=document.getElementById('lap-periode').value;
-  var q;
-  if(p===''){ // ikuti filter Analisa saat ini
-    q='periode=<?= e($periode) ?><?= $dari?'&dari='.e($dari):'' ?><?= $sampai?'&sampai='.e($sampai):'' ?>';
-  } else if(p==='custom'){
-    var d=document.getElementById('lap-dari').value, s=document.getElementById('lap-sampai').value;
-    if(!d||!s){alert('Isi tanggal Dari dan Sampai untuk rentang khusus.');return;}
-    if(d>s){var t=d;d=s;s=t;}
-    q='dari='+d+'&sampai='+s;
-  } else { q='periode='+p; }
+  var q=lapQuery(); if(q===null)return;
   window.open('laporan.php?'+q+'&sec='+sel.join(','),'_blank'); closeModal('m-laporan');
+}
+function unduhExcel(){
+  var q=lapQuery(); if(q===null)return;
+  window.open('export.php?'+q,'_blank'); closeModal('m-laporan');
 }
 function donutMode(m){
   document.querySelectorAll('.donut-view').forEach(v=>v.style.display=v.dataset.mode===m?'':'none');

@@ -59,9 +59,12 @@ function angCard($b,$periodeOpt,$isHist=false){ global $pdo;
 <?php endif; ?>
 
 <!-- ===== DOMPET (di atas anggaran) ===== -->
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap">
   <div class="eyebrow" style="margin:0">💼 Dompet Saya</div>
-  <button class="btn btn-primary btn-sm" onclick="openDompet()"><?= icon('plus',14,'#fff',2.5) ?> Dompet Baru</button>
+  <div style="display:flex;gap:8px">
+    <?php if(count($dompetList)>=2): ?><button class="btn btn-ghost btn-sm" onclick="openModal('m-transfer')"><?= icon('export',14) ?> Transfer</button><?php endif; ?>
+    <button class="btn btn-primary btn-sm" onclick="openDompet()"><?= icon('plus',14,'#fff',2.5) ?> Dompet Baru</button>
+  </div>
 </div>
 <?php $saldo=getSaldoTotal($pdo); ?>
 <div class="balance" style="margin-bottom:18px">
@@ -89,6 +92,18 @@ function angCard($b,$periodeOpt,$isHist=false){ global $pdo;
   <?php endforeach; ?>
 </div>
 <?php endif; ?>
+
+<!-- Modal Transfer Antar Dompet -->
+<div class="modal-bg" id="m-transfer"><div class="modal" style="max-width:400px"><div class="grip"></div><div class="mbody">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h2>↔️ Transfer Antar Dompet</h2><button class="icon-btn" onclick="closeModal('m-transfer')"><?= icon('x',18) ?></button></div>
+  <form method="post" action="actions.php">
+    <input type="hidden" name="action" value="transfer_saldo"><input type="hidden" name="back" value="?page=anggaran">
+    <div class="field"><label>Dari Dompet</label><select name="from_id" id="tf-from"><?php foreach($dompetList as $w): ?><option value="<?= $w['id'] ?>"><?= e($w['emoji'].' '.$w['nama']) ?> — <?= rp($w['saldo']) ?></option><?php endforeach; ?></select></div>
+    <div class="field"><label>Ke Dompet</label><select name="to_id" id="tf-to"><?php foreach($dompetList as $i=>$w): ?><option value="<?= $w['id'] ?>" <?= $i===1?'selected':'' ?>><?= e($w['emoji'].' '.$w['nama']) ?> — <?= rp($w['saldo']) ?></option><?php endforeach; ?></select></div>
+    <div class="field"><label>Jumlah (Rp)</label><input type="text" name="jumlah" inputmode="numeric" placeholder="0" oninput="fmtRupiah(this)" required style="font-family:var(--serif);font-size:22px;text-align:center"></div>
+    <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:14px;font-weight:800"><?= icon('export',16,'#fff') ?> Transfer</button>
+  </form>
+</div></div></div>
 
 <div class="balance" style="margin-bottom:22px">
   <div class="glow"></div>
