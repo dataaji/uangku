@@ -1,4 +1,5 @@
 <?php
+ob_start(); // kebal "headers already sent" jika ada output/BOM di file include
 // Mulai alur login Google — arahkan ke halaman izin Google
 require_once __DIR__ . '/inc/auth.php';      // session
 require_once __DIR__ . '/inc/google_config.php';

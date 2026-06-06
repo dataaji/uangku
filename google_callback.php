@@ -1,4 +1,5 @@
 <?php
+ob_start(); // kebal "headers already sent" jika ada output/BOM di file include
 // Callback dari Google — tukar code jadi token, ambil email, login/daftar
 require_once __DIR__ . '/inc/db.php';
 require_once __DIR__ . '/inc/functions.php';
