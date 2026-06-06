@@ -69,6 +69,53 @@ function periodeRange($periode){
     return [$a,$b,$label];
 }
 
+// ── Transaksi berulang otomatis ──────────────────────────────
+function getTransaksiRutin($pdo){ $s=$pdo->prepare('SELECT * FROM transaksi_rutin WHERE user_id=? ORDER BY id DESC'); $s->execute([uid()]); return $s->fetchAll(); }
+function _nextDate($dateStr,$freq){
+    $t=strtotime($dateStr);
+    switch($freq){
+        case 'harian':   return date('Y-m-d',strtotime('+1 day',$t));
+        case 'mingguan': return date('Y-m-d',strtotime('+1 week',$t));
+        case 'tahunan':  return date('Y-m-d',strtotime('+1 year',$t));
+        default:         return date('Y-m-d',strtotime('+1 month',$t)); // bulanan
+    }
+}
+// Jalankan transaksi berulang yang sudah jatuh tempo (lazy, sekali per request)
+function prosesTransaksiRutin($pdo){
+    static $done=false; if($done) return; $done=true;
+    $u=uid(); if(!$u) return; $today=date('Y-m-d');
+    $s=$pdo->prepare('SELECT * FROM transaksi_rutin WHERE user_id=? AND aktif=1'); $s->execute([$u]);
+    $ins=$pdo->prepare('INSERT INTO transaksi (user_id,emoji,tint,judul,kategori,dompet_id,tanggal,jumlah,catatan) VALUES (?,?,?,?,?,?,?,?,?)');
+    $upd=$pdo->prepare('UPDATE dompet SET saldo=saldo+? WHERE id=? AND user_id=?');
+    foreach($s->fetchAll() as $r){
+        $last=$r['terakhir_jalan']?:($r['mulai_tgl']?:$today);
+        $next=_nextDate($last,$r['frekuensi']); $n=0;
+        while($next<=$today && $n<60){
+            $ins->execute([$u,$r['emoji'],$r['tint'],$r['judul'],$r['kategori'],$r['dompet_id']?:null,$next,$r['jumlah'],'(otomatis berulang)']);
+            if($r['dompet_id']) $upd->execute([$r['jumlah'],$r['dompet_id'],$u]);
+            $last=$next; $next=_nextDate($last,$r['frekuensi']); $n++;
+        }
+        if($n>0) $pdo->prepare('UPDATE transaksi_rutin SET terakhir_jalan=? WHERE id=? AND user_id=?')->execute([$last,$r['id'],$u]);
+    }
+}
+// Setoran tabungan otomatis tiap bulan (lazy)
+function prosesSetoranAuto($pdo){
+    static $done=false; if($done) return; $done=true;
+    $u=uid(); if(!$u) return; $hari=(int)date('j'); $akhir=(int)date('t');
+    $s=$pdo->prepare('SELECT * FROM tabungan WHERE user_id=? AND auto_setor=1 AND per_bulan>0'); $s->execute([$u]);
+    foreach($s->fetchAll() as $g){
+        if((float)$g['terkumpul']>=(float)$g['target']) continue;
+        $eff=min((int)($g['ingat_tgl']?:1),$akhir);
+        if($hari>=$eff){
+            $setorBulanIni = !empty($g['terakhir_setor']) && date('Y-m',strtotime($g['terakhir_setor']))===date('Y-m');
+            if(!$setorBulanIni){
+                $tambah=min((float)$g['per_bulan'], (float)$g['target']-(float)$g['terkumpul']);
+                $pdo->prepare('UPDATE tabungan SET terkumpul=terkumpul+?, terakhir_setor=? WHERE id=? AND user_id=?')->execute([$tambah,date('Y-m-d'),$g['id'],$u]);
+            }
+        }
+    }
+}
+
 // ── Transaksi ── (filter + rentang tanggal opsional) ────────
 function getTransaksi($pdo,$filter='semua',$dari=null,$sampai=null){
     $sql='SELECT t.*, d.nama AS dompet_nama FROM transaksi t LEFT JOIN dompet d ON t.dompet_id=d.id WHERE t.user_id=?';

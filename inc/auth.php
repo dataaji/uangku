@@ -52,6 +52,7 @@ function currentUser($pdo) {
 function requireLogin($pdo) {
     $u = currentUser($pdo);
     if (!$u) { header('Location: login.php'); exit; }
+    if (!empty($u['pin']) && empty($_SESSION['pin_ok'])) { header('Location: pin.php'); exit; }
     return $u;
 }
 

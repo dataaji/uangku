@@ -60,8 +60,15 @@ case 'add_transaksi': {
         $pdo->prepare('INSERT INTO transaksi (user_id,emoji,tint,judul,kategori,dompet_id,tanggal,jumlah,catatan) VALUES (?,?,?,?,?,?,?,?,?)')
             ->execute([$U,$km['emoji'],$km['tint'],$judul,$kategori,$dompetId,$tanggal,$jumlah,$catatan]);
         $pdo->prepare('UPDATE dompet SET saldo=saldo+? WHERE id=? AND user_id=?')->execute([$jumlah,$dompetId,$U]);
+        // Buat template berulang otomatis (opsional)
+        if(isset($_POST['rutin'])){
+            $rf=$_POST['rutin_freq']??'bulanan'; if(!in_array($rf,['harian','mingguan','bulanan','tahunan']))$rf='bulanan';
+            $pdo->prepare('INSERT INTO transaksi_rutin (user_id,emoji,tint,judul,kategori,dompet_id,jumlah,frekuensi,mulai_tgl,terakhir_jalan,aktif) VALUES (?,?,?,?,?,?,?,?,?,?,1)')
+                ->execute([$U,$km['emoji'],$km['tint'],$judul,$kategori,$dompetId,$jumlah,$rf,$tanggal,$tanggal]);
+        }
     } redirect($back);
 }
+case 'delete_rutin': { $pdo->prepare('DELETE FROM transaksi_rutin WHERE id=? AND user_id=?')->execute([(int)$_POST['id'],$U]); redirect($back); }
 case 'delete_transaksi': {
     $id=(int)$_POST['id']; $s=$pdo->prepare('SELECT * FROM transaksi WHERE id=? AND user_id=?'); $s->execute([$id,$U]); $tx=$s->fetch();
     if($tx){ $pdo->prepare('UPDATE dompet SET saldo=saldo-? WHERE id=? AND user_id=?')->execute([$tx['jumlah'],$tx['dompet_id'],$U]);
@@ -140,16 +147,16 @@ case 'add_tabungan': {
             if($perBulan>0 && $bln>0) $catatan='Nabung '.rpShort($perBulan).'/bln → '.$bln.' bulan lagi';
             elseif($perBulan>0) $catatan='Nabung '.rpShort($perBulan).'/bln';
         }
-        $pdo->prepare('INSERT INTO tabungan (user_id,emoji,judul,tint,terkumpul,target,per_bulan,warna,catatan,target_tanggal,ingat_tgl,mulai_tgl,ingatkan,frekuensi,freq_hari,freq_tgl,freq_bulan,selesai_tgl) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-            ->execute([$U,$_POST['emoji']??'🎯',$judul,$_POST['tint']??'#e3ecf6',$saldoAwal,$target,$perBulan,$_POST['warna']??'#3b6fb0',$catatan,$tgl,$ingat,$j['mulai'],$j['ingatkan'],$j['freq'],$j['hari'],$j['tgl'],$j['bulan'],$j['selesai']]);
+        $pdo->prepare('INSERT INTO tabungan (user_id,emoji,judul,tint,terkumpul,target,per_bulan,warna,catatan,target_tanggal,ingat_tgl,mulai_tgl,ingatkan,frekuensi,freq_hari,freq_tgl,freq_bulan,selesai_tgl,auto_setor) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+            ->execute([$U,$_POST['emoji']??'🎯',$judul,$_POST['tint']??'#e3ecf6',$saldoAwal,$target,$perBulan,$_POST['warna']??'#3b6fb0',$catatan,$tgl,$ingat,$j['mulai'],$j['ingatkan'],$j['freq'],$j['hari'],$j['tgl'],$j['bulan'],$j['selesai'],isset($_POST['auto_setor'])?1:0]);
     } redirect($back);
 }
 case 'edit_tabungan': {
     $j=jadwalPost();
     $tgl   = $j['selesai'];
     $ingat = ($j['ingatkan'] && $j['freq']==='bulanan') ? $j['tgl'] : 0;
-    $pdo->prepare('UPDATE tabungan SET judul=?,target=?,per_bulan=?,catatan=?,emoji=?,target_tanggal=?,ingat_tgl=?,mulai_tgl=?,ingatkan=?,frekuensi=?,freq_hari=?,freq_tgl=?,freq_bulan=?,selesai_tgl=? WHERE id=? AND user_id=?')
-        ->execute([str_('judul'),num('target'),num('per_bulan'),str_('catatan'),$_POST['emoji']??'🎯',$tgl,$ingat,$j['mulai'],$j['ingatkan'],$j['freq'],$j['hari'],$j['tgl'],$j['bulan'],$j['selesai'],(int)$_POST['id'],$U]);
+    $pdo->prepare('UPDATE tabungan SET judul=?,target=?,per_bulan=?,catatan=?,emoji=?,target_tanggal=?,ingat_tgl=?,mulai_tgl=?,ingatkan=?,frekuensi=?,freq_hari=?,freq_tgl=?,freq_bulan=?,selesai_tgl=?,auto_setor=? WHERE id=? AND user_id=?')
+        ->execute([str_('judul'),num('target'),num('per_bulan'),str_('catatan'),$_POST['emoji']??'🎯',$tgl,$ingat,$j['mulai'],$j['ingatkan'],$j['freq'],$j['hari'],$j['tgl'],$j['bulan'],$j['selesai'],isset($_POST['auto_setor'])?1:0,(int)$_POST['id'],$U]);
     redirect($back);
 }
 case 'delete_tabungan': { $pdo->prepare('DELETE FROM tabungan WHERE id=? AND user_id=?')->execute([(int)$_POST['id'],$U]); redirect($back); }
@@ -318,6 +325,7 @@ case 'update_password': {
 case 'set_pin': {
     $pin=preg_replace('/\D/','',$_POST['pin']??'');
     $pdo->prepare('UPDATE users SET pin=? WHERE id=?')->execute([$pin?password_hash($pin,PASSWORD_DEFAULT):null,$U]);
+    $_SESSION['pin_ok']=1; // jangan langsung terkunci setelah set/ubah PIN
     redirect($back);
 }
 case 'toggle_dark': { $pdo->prepare('UPDATE users SET dark_mode=1-dark_mode WHERE id=?')->execute([$U]); redirect($back); }

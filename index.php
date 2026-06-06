@@ -5,6 +5,7 @@ require_once __DIR__ . '/inc/icons.php';
 require_once __DIR__ . '/inc/auth.php';
 $me = requireLogin($pdo);
 $GLOBALS['UANGKU_CUR'] = $me['currency'] ?? 'Rp';
+prosesTransaksiRutin($pdo); prosesSetoranAuto($pdo);   // jalankan otomatis yang jatuh tempo
 
 $bulan = (int)($_GET['bulan'] ?? date('n'));
 $tahun = (int)($_GET['tahun'] ?? date('Y'));

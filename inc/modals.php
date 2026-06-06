@@ -87,6 +87,14 @@ function jadwalSet(p,d){
         </select></div>
         <div class="field" style="flex:1"><label>Tanggal</label><input type="date" name="tanggal" value="<?= date('Y-m-d') ?>"></div>
       </div>
+      <label class="toggle-row" style="cursor:pointer">
+        <span style="font-size:13.5px;font-weight:700">🔁 Ulangi otomatis</span>
+        <span class="switch"><input type="checkbox" name="rutin" value="1" id="tx-rutin" onchange="document.getElementById('tx-rutin-freq').style.display=this.checked?'block':'none'"><span class="sl"></span></span>
+      </label>
+      <div class="field" id="tx-rutin-freq" style="display:none;margin-top:8px"><label>Frekuensi ulang</label>
+        <select name="rutin_freq"><option value="harian">Tiap hari</option><option value="mingguan">Tiap minggu</option><option value="bulanan" selected>Tiap bulan</option><option value="tahunan">Tiap tahun</option></select>
+        <div style="font-size:11px;color:var(--soft);margin-top:5px">Transaksi ini akan dicatat otomatis tiap periode (mis. tagihan/gaji rutin).</div>
+      </div>
       <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:15px;font-size:16px;font-weight:800">Simpan Transaksi</button>
     </form>
   </div></div>

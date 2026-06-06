@@ -1,7 +1,9 @@
 <?php
 $dompet=getDompet($pdo);
 $kategori=getKategori($pdo);
+$rutin=getTransaksiRutin($pdo);
 $punyaPin=!empty($me['pin']);
+$rutinLbl=['harian'=>'Tiap hari','mingguan'=>'Tiap minggu','bulanan'=>'Tiap bulan','tahunan'=>'Tiap tahun'];
 topbar('Pengaturan', 'Akun & preferensi', $notifs, 'pengaturan');
 $msg=$_GET['msg']??'';
 ?>
@@ -38,7 +40,7 @@ $msg=$_GET['msg']??'';
 
     <div class="eyebrow">Keamanan</div>
     <div class="card" style="padding:18px;margin-bottom:22px">
-      <div style="font-size:12.5px;color:var(--soft);margin-bottom:16px;padding:10px 12px;background:var(--card2);border-radius:10px">🔐 Login utama memakai <b>Google</b>. Password hanya untuk akun uji coba.</div>
+      <div style="font-size:12.5px;color:var(--soft);margin-bottom:16px;padding:10px 12px;background:var(--card2);border-radius:10px">🔐 Login utama memakai <b>Google</b>. PIN menambah lapisan keamanan saat membuka aplikasi.</div>
       <form method="post" action="actions.php">
         <input type="hidden" name="action" value="set_pin"><input type="hidden" name="back" value="?page=pengaturan">
         <div style="font-size:14px;font-weight:700;margin-bottom:4px">🔒 PIN Aplikasi <?= $punyaPin?'<span class="pill" style="background:var(--greenT);color:var(--green);font-size:10px">aktif</span>':'' ?></div>
@@ -123,6 +125,19 @@ $msg=$_GET['msg']??'';
         <?php endforeach; ?>
       </div>
     </div>
+
+    <?php if($rutin): ?>
+    <div class="eyebrow" style="margin-top:22px">🔁 Transaksi Berulang</div>
+    <div class="card" style="overflow:hidden">
+      <?php foreach($rutin as $r): ?>
+        <div class="row">
+          <div class="cat" style="width:38px;height:38px;border-radius:12px;font-size:18px;background:<?= $r['tint'] ?>"><?= $r['emoji']?:'🔁' ?></div>
+          <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700"><?= e($r['judul']) ?></div><div style="font-size:12px;color:var(--soft)"><?= e($rutinLbl[$r['frekuensi']]??'Tiap bulan') ?> · <?= rp(abs($r['jumlah'])) ?> · <?= $r['jumlah']>=0?'masuk':'keluar' ?></div></div>
+          <form method="post" action="actions.php" data-confirm="Hentikan transaksi berulang &quot;<?= e($r['judul']) ?>&quot;? Transaksi yang sudah tercatat tetap ada."><input type="hidden" name="action" value="delete_rutin"><input type="hidden" name="id" value="<?= $r['id'] ?>"><input type="hidden" name="back" value="?page=pengaturan"><button class="mini-btn danger"><?= icon('trash',15) ?></button></form>
+        </div>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
   </div>
 </div>
 
