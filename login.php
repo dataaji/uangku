@@ -20,6 +20,9 @@ if (currentUser($pdo)) { header('Location: index.php'); exit; }
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Masuk — Uangku</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1c1813">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -69,5 +72,6 @@ if (currentUser($pdo)) { header('Location: index.php'); exit; }
     </form>
   </div>
 </div>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});</script>
 </body>
 </html>
