@@ -57,6 +57,13 @@ $msg=$_GET['msg']??'';
         <button class="btn btn-ghost btn-sm" style="color:var(--red)">Matikan PIN</button>
       </form>
       <?php endif; ?>
+      <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:14px">
+        <div style="font-size:12px;color:var(--soft);margin-bottom:8px">Tes apakah email (untuk Lupa PIN) bisa terkirim ke <b><?= e($me['email']) ?></b>.</div>
+        <form method="post" action="actions.php">
+          <input type="hidden" name="action" value="test_email"><input type="hidden" name="back" value="?page=pengaturan">
+          <button class="btn btn-ghost btn-sm">✉️ Tes kirim email</button>
+        </form>
+      </div>
     </div>
 
     <div class="eyebrow">Preferensi</div>

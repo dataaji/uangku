@@ -462,6 +462,14 @@ case 'set_pin': {
     redirect($back);
 }
 case 'toggle_dark': { $pdo->prepare('UPDATE users SET dark_mode=1-dark_mode WHERE id=?')->execute([$U]); redirect($back); }
+case 'test_email': {
+    $to=$me['email']??'';
+    if(!$to){ flash('Akunmu belum punya email.','err'); redirect($back); }
+    $html='<div style="font-family:sans-serif;font-size:15px;color:#222"><p>Halo '.e($me['nama']).',</p><p>Ini <b>email percobaan</b> dari Uangku. Kalau kamu menerima ini, pengaturan email sudah benar 🎉</p></div>';
+    $ok=sendMail($to,'Tes Email Uangku',$html);
+    flash($ok ? 'Email tes terkirim ke '.maskEmail($to).'. Cek Inbox & folder Spam.' : 'GAGAL mengirim email. SMTP belum benar (cek inc/smtp_config.php).', $ok?'ok':'err');
+    redirect($back);
+}
 
 default: redirect($back);
 }
