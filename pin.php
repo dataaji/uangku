@@ -13,6 +13,7 @@ if (empty($me['pin'])) { $_SESSION['pin_ok'] = 1; header('Location: index.php');
 if (!empty($_SESSION['pin_ok'])) { header('Location: index.php'); exit; }
 
 $err = ''; $info = ''; $step = 'pin';   // pin | kode
+const RESEND_COOLDOWN = 120;            // jeda kirim ulang kode (detik)
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mode = $_POST['mode'] ?? 'verify';
@@ -26,8 +27,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     } elseif ($mode === 'req') {            // minta kode reset ke email
         $step = 'kode';
-        if (!empty($_SESSION['pin_reset']['sent']) && time() - $_SESSION['pin_reset']['sent'] < 60) {
-            $err = 'Tunggu sebentar sebelum minta kode lagi.';
+        $sisa = !empty($_SESSION['pin_reset']['sent']) ? RESEND_COOLDOWN - (time() - $_SESSION['pin_reset']['sent']) : 0;
+        if ($sisa > 0) {
+            $err = 'Tunggu '.$sisa.' detik lagi sebelum minta kode baru.';
         } else {
             $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
             $_SESSION['pin_reset'] = ['h' => password_hash($code, PASSWORD_DEFAULT), 'exp' => time() + 900, 'sent' => time()];
@@ -37,9 +39,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   . '<p style="font-size:30px;font-weight:bold;letter-spacing:6px;color:#ef6c2e">' . $code . '</p>'
                   . '<p>Berlaku 15 menit. Abaikan email ini jika kamu tidak meminta.</p></div>';
             if (sendMail($me['email'], 'Kode Reset PIN Uangku', $html)) {
-                $info = 'Kode dikirim ke ' . maskEmail($me['email']) . '. Cek email (termasuk folder Spam).';
+                $info = 'Kode dikirim ke ' . maskEmail($me['email']) . '. Biasanya masuk 1–2 menit — cek juga folder Spam/Promosi.';
             } else {
-                $err = 'Gagal mengirim email. Coba lagi nanti.';
+                $err = 'Gagal mengirim email. Periksa pengaturan SMTP atau coba lagi.';
             }
         }
 
@@ -61,6 +63,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 $dark = !empty($me['dark_mode']);
+$remain = ($step === 'kode' && !empty($_SESSION['pin_reset']['sent']))
+        ? max(0, RESEND_COOLDOWN - (time() - $_SESSION['pin_reset']['sent'])) : 0;
 ?>
 <!DOCTYPE html>
 <html lang="id" class="<?= $dark?'dark':'' ?>">
@@ -101,8 +105,20 @@ $dark = !empty($me['dark_mode']);
       <input type="password" name="pin_baru2" inputmode="numeric" maxlength="6" minlength="6" pattern="\d{6}" placeholder="Ulangi PIN baru" required>
       <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:14px;font-weight:800;margin-top:8px">Simpan PIN Baru</button>
     </form>
-    <form method="post" style="margin-top:6px"><input type="hidden" name="mode" value="req"><button class="lupa" type="submit">Kirim ulang kode</button></form>
+    <form method="post" style="margin-top:6px"><input type="hidden" name="mode" value="req"><button class="lupa" type="submit" id="resend-btn" data-remain="<?= $remain ?>">Kirim ulang kode</button></form>
     <a href="pin.php" class="lo">← Kembali masukkan PIN</a>
+    <script>
+    (function(){
+      var b=document.getElementById('resend-btn'); if(!b) return;
+      var s=parseInt(b.dataset.remain||'0',10);
+      function tick(){
+        if(s>0){ b.disabled=true; b.style.opacity=.45; b.style.cursor='default';
+          b.textContent='Kirim ulang kode ('+s+'d)'; s--; setTimeout(tick,1000); }
+        else { b.disabled=false; b.style.opacity=1; b.style.cursor='pointer'; b.textContent='Kirim ulang kode'; }
+      }
+      tick();
+    })();
+    </script>
   <?php else: ?>
     <div class="ic">🔒</div>
     <h1>Masukkan PIN</h1>
