@@ -110,6 +110,11 @@ function prosesSetoranAuto($pdo){
             $setorBulanIni = !empty($g['terakhir_setor']) && date('Y-m',strtotime($g['terakhir_setor']))===date('Y-m');
             if(!$setorBulanIni){
                 $tambah=min((float)$g['per_bulan'], (float)$g['target']-(float)$g['terkumpul']);
+                // Ambil dari rekening sumber (kalau diset & saldo cukup); kalau tidak, lewati bulan ini
+                $src=null;
+                if(!empty($g['sumber_dompet_id'])){ $w=$pdo->prepare('SELECT id,saldo FROM dompet WHERE id=? AND user_id=?'); $w->execute([$g['sumber_dompet_id'],$u]); $src=$w->fetch(); }
+                if(!$src || (float)$src['saldo'] < $tambah) continue;  // saldo kurang → tunda, jangan paksa minus
+                $pdo->prepare('UPDATE dompet SET saldo=saldo-? WHERE id=? AND user_id=?')->execute([$tambah,$src['id'],$u]);
                 $pdo->prepare('UPDATE tabungan SET terkumpul=terkumpul+?, terakhir_setor=? WHERE id=? AND user_id=?')->execute([$tambah,date('Y-m-d'),$g['id'],$u]);
             }
         }

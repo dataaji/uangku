@@ -1,5 +1,6 @@
 <?php
 $goals=getTabungan($pdo);
+$dompetList=getDompet($pdo);
 $totSaved=array_sum(array_column($goals,'terkumpul'));
 $totTarget=array_sum(array_column($goals,'target'));
 
@@ -90,6 +91,12 @@ topbar('Tabungan', count($goals).' target aktif', $notifs, 'tabungan',
   <div id="dn-goal" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--card2);border-radius:14px;margin-bottom:16px"></div>
   <form method="post" action="actions.php">
     <input type="hidden" name="action" id="dn-act"><input type="hidden" name="id" id="dn-id"><input type="hidden" name="back" value="?page=tabungan">
+    <div class="field"><label id="dn-wlbl">Dari rekening</label>
+      <select name="dompet_id" id="dn-dompet" required>
+        <?php if(!$dompetList): ?><option value="">— belum ada rekening —</option><?php endif; ?>
+        <?php foreach($dompetList as $w): ?><option value="<?= $w['id'] ?>"><?= e($w['emoji'].' '.$w['nama']) ?> (<?= rp($w['saldo']) ?>)</option><?php endforeach; ?>
+      </select>
+    </div>
     <div class="field"><label>Jumlah (Rp)</label><input type="text" name="dana" id="dn-dana" inputmode="numeric" placeholder="0" oninput="fmtRupiah(this);previewDana()" required style="font-family:var(--serif);font-size:26px;text-align:center" autofocus></div>
     <div id="dn-preview" style="display:none;padding:11px 14px;background:var(--greenT);border-radius:12px;margin-bottom:14px;font-size:13.5px;font-weight:700;text-align:center"></div>
     <button type="submit" class="btn btn-primary" id="dn-btn" style="width:100%;justify-content:center;padding:15px;font-size:16px;font-weight:800">Simpan</button>
@@ -122,7 +129,13 @@ topbar('Tabungan', count($goals).' target aktif', $notifs, 'tabungan',
       <div class="toggle-row" style="margin-bottom:6px">
         <span style="font-size:13px;font-weight:700">💰 Setor otomatis tiap bulan</span>
         <label class="switch"><input type="checkbox" name="auto_setor" value="1" id="goal-auto"><span class="sl"></span></label></div>
-      <div style="font-size:11px;color:var(--soft);margin:0 2px 8px">Saldo "Nabung/Bulan" otomatis ditambahkan tiap bulan (pada tanggal pengingat) tanpa input manual.</div>
+      <div class="field"><label>Setor otomatis dari rekening</label>
+        <select name="sumber_dompet_id" id="goal-src">
+          <option value="">— pilih rekening —</option>
+          <?php foreach($dompetList as $w): ?><option value="<?= $w['id'] ?>"><?= e($w['emoji'].' '.$w['nama']) ?></option><?php endforeach; ?>
+        </select>
+      </div>
+      <div style="font-size:11px;color:var(--soft);margin:0 2px 8px">Saldo "Nabung/Bulan" otomatis dipindahkan dari rekening di atas tiap bulan (pada tanggal pengingat). Jika saldo rekening kurang, setoran ditunda.</div>
     </div>
     <div class="field"><label>Catatan (boleh kosong)</label><input type="text" name="catatan" id="goal-cat" placeholder=""></div>
     <div id="goal-hint" style="display:none;padding:10px 14px;background:var(--blueT);border-radius:12px;margin-bottom:14px;font-size:12.5px;font-weight:700;color:var(--blue)"></div>
@@ -139,6 +152,7 @@ function openDana(g,mode){
   document.getElementById('dn-id').value=g.id;
   document.getElementById('dn-dana').value=''; document.getElementById('dn-preview').style.display='none';
   document.getElementById('dn-btn').textContent=mode==='setor'?'Setor':'Tarik';
+  document.getElementById('dn-wlbl').textContent=mode==='setor'?'Dari rekening':'Ke rekening';
   document.getElementById('dn-goal').innerHTML='<div class="cat" style="width:38px;height:38px;font-size:19px;background:'+g.tint+'">'+g.emoji+'</div><div><div style="font-size:14px;font-weight:700">'+g.judul+'</div><div style="font-size:12px;color:var(--soft)">Terkumpul Rp'+_dnCur.toLocaleString('id-ID')+'</div></div>';
   openModal('m-dana');
 }
@@ -174,8 +188,8 @@ function hitungNabung(){
   } else { hint.style.display='none'; pb.placeholder='otomatis'; }
 }
 function tbSched(){document.getElementById('tb-sched').style.display=document.getElementById('tb-on').checked?'':'none';hitungNabung();}
-function openGoal(){document.getElementById('goal-title').textContent='Target Baru 🎯';document.getElementById('goal-act').value='add_tabungan';['goal-id','goal-judul','goal-target','goal-awal','goal-pb','goal-cat'].forEach(i=>document.getElementById(i).value='');document.getElementById('goal-awal').parentElement.style.display='';document.getElementById('goal-hint').style.display='none';document.getElementById('tb-on').checked=false;document.getElementById('goal-auto').checked=false;jadwalSet('tb',{});tbSched();openModal('m-goal');}
-function editGoal(g){document.getElementById('goal-title').textContent='Edit Target';document.getElementById('goal-act').value='edit_tabungan';document.getElementById('goal-id').value=g.id;document.getElementById('goal-judul').value=g.judul;document.getElementById('goal-target').value=Number(g.target).toLocaleString('id-ID');document.getElementById('goal-pb').value=g.per_bulan>0?Number(g.per_bulan).toLocaleString('id-ID'):'';document.getElementById('goal-cat').value=g.catatan||'';document.getElementById('goal-emoji').value=g.emoji;document.getElementById('goal-awal').value='';document.getElementById('goal-awal').parentElement.style.display='none';document.getElementById('goal-hint').style.display='none';document.getElementById('tb-on').checked=(g.ingatkan==1);document.getElementById('goal-auto').checked=(g.auto_setor==1);jadwalSet('tb',g);tbSched();openModal('m-goal');}
+function openGoal(){document.getElementById('goal-title').textContent='Target Baru 🎯';document.getElementById('goal-act').value='add_tabungan';['goal-id','goal-judul','goal-target','goal-awal','goal-pb','goal-cat'].forEach(i=>document.getElementById(i).value='');document.getElementById('goal-awal').parentElement.style.display='';document.getElementById('goal-hint').style.display='none';document.getElementById('tb-on').checked=false;document.getElementById('goal-auto').checked=false;document.getElementById('goal-src').value='';jadwalSet('tb',{});tbSched();openModal('m-goal');}
+function editGoal(g){document.getElementById('goal-title').textContent='Edit Target';document.getElementById('goal-act').value='edit_tabungan';document.getElementById('goal-id').value=g.id;document.getElementById('goal-judul').value=g.judul;document.getElementById('goal-target').value=Number(g.target).toLocaleString('id-ID');document.getElementById('goal-pb').value=g.per_bulan>0?Number(g.per_bulan).toLocaleString('id-ID'):'';document.getElementById('goal-cat').value=g.catatan||'';document.getElementById('goal-emoji').value=g.emoji;document.getElementById('goal-awal').value='';document.getElementById('goal-awal').parentElement.style.display='none';document.getElementById('goal-hint').style.display='none';document.getElementById('tb-on').checked=(g.ingatkan==1);document.getElementById('goal-auto').checked=(g.auto_setor==1);document.getElementById('goal-src').value=g.sumber_dompet_id||'';jadwalSet('tb',g);tbSched();openModal('m-goal');}
 // hitung ulang saat tanggal selesai / frekuensi berubah
 document.addEventListener('DOMContentLoaded',function(){['tb-selesai','tb-freq','tb-emode'].forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener('change',hitungNabung);});});
 </script>

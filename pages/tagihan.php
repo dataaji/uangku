@@ -1,5 +1,6 @@
 <?php
 $tagihan=getTagihan($pdo);
+$dompetList=getDompet($pdo);
 $filter=$_GET['fp']??'bulan'; // minggu | bulan | tahun
 $today=(int)date('j');
 
@@ -14,7 +15,7 @@ $totLunas=array_sum(array_column($lunas,'jumlah'));
 $mult=$filter==='tahun'?12:1;
 $labelFilter=['minggu'=>'minggu ini','bulan'=>'bulan ini','tahun'=>'setahun'][$filter];
 
-function billCard($b){ global $pdo,$today;
+function billCard($b){ global $pdo,$today,$dompetList;
   $st=tagihanStatus($b); $info=tagihanInfo()[$st];
   $isCicil=($b['jenis']==='cicilan' && $b['total']>0);
   $pctC=$isCicil&&$b['total']>0?round($b['terbayar']/$b['total']*100):0;
@@ -47,6 +48,10 @@ function billCard($b){ global $pdo,$today;
         <?php if(!$b['sudah_bayar']): ?>
         <form method="post" action="actions.php" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap" data-confirm="Bayar cicilan bulan ini?" data-confirm-type="primary" data-confirm-icon="💳" data-confirm-ok="Ya, bayar">
           <input type="hidden" name="action" value="bayar_cicilan"><input type="hidden" name="id" value="<?= $b['id'] ?>"><input type="hidden" name="back" value="?page=tagihan">
+          <select name="dompet_id" required style="padding:8px 10px;border:1px solid var(--line);border-radius:10px;font-size:12px;background:var(--card);color:var(--ink);max-width:140px">
+            <?php if(!$dompetList): ?><option value="">— belum ada rekening —</option><?php endif; ?>
+            <?php foreach($dompetList as $w): ?><option value="<?= $w['id'] ?>"><?= e($w['emoji'].' '.$w['nama']) ?></option><?php endforeach; ?>
+          </select>
           <input type="text" name="bayar" inputmode="numeric" value="<?= number_format($b['jumlah'],0,',','.') ?>" data-total="<?= $b['total'] ?>" data-terbayar="<?= $b['terbayar'] ?>" oninput="fmtRupiah(this);previewCicil(this)" style="width:120px;padding:8px 11px;border:1px solid var(--line);border-radius:10px;font-size:12.5px;background:var(--card);color:var(--ink);outline:none">
           <button class="btn btn-primary btn-sm">Bayar</button>
           <span class="cicil-prev" style="font-size:11.5px;font-weight:700;color:var(--soft)"></span>
@@ -55,13 +60,19 @@ function billCard($b){ global $pdo,$today;
       </div>
     <?php else: ?>
       <div style="margin-top:12px">
-        <form method="post" action="actions.php" data-confirm="<?= $b['sudah_bayar']?'Ubah jadi BELUM lunas?':'Tandai tagihan ini LUNAS sekarang?' ?>" data-confirm-type="primary" data-confirm-icon="<?= $b['sudah_bayar']?'↩️':'✅' ?>" data-confirm-ok="<?= $b['sudah_bayar']?'Ya, batal lunas':'Ya, lunas' ?>">
-          <input type="hidden" name="action" value="toggle_tagihan"><input type="hidden" name="id" value="<?= $b['id'] ?>"><input type="hidden" name="back" value="?page=tagihan&fp=<?= $_GET['fp']??'bulan' ?>">
-          <button class="btn btn-sm" style="width:100%;justify-content:center;padding:10px;background:<?= $info['tint'] ?>;color:<?= $accent ?>">
-            <span style="width:8px;height:8px;border-radius:4px;background:<?= $accent ?>"></span>
-            <?= $b['sudah_bayar']?($b['berulang']?'✓ Lunas — ketuk untuk reset':'✓ Lunas — ketuk untuk batal'):'Tandai Lunas' ?>
+        <?php if(!$b['sudah_bayar']): ?>
+          <button class="btn btn-sm" style="width:100%;justify-content:center;padding:10px;background:<?= $info['tint'] ?>;color:<?= $accent ?>" onclick='openBayar(<?= json_encode($b,JSON_HEX_APOS|JSON_HEX_QUOT) ?>)'>
+            💳 Bayar tagihan
           </button>
-        </form>
+        <?php else: ?>
+          <form method="post" action="actions.php" data-confirm="Batalkan pembayaran? Uang akan dikembalikan ke rekening." data-confirm-type="primary" data-confirm-icon="↩️" data-confirm-ok="Ya, batalkan">
+            <input type="hidden" name="action" value="toggle_tagihan"><input type="hidden" name="id" value="<?= $b['id'] ?>"><input type="hidden" name="back" value="?page=tagihan&fp=<?= $_GET['fp']??'bulan' ?>">
+            <button class="btn btn-sm" style="width:100%;justify-content:center;padding:10px;background:var(--greenT);color:var(--green)">
+              <span style="width:8px;height:8px;border-radius:4px;background:var(--green)"></span>
+              ✓ Lunas — ketuk untuk batalkan
+            </button>
+          </form>
+        <?php endif; ?>
       </div>
     <?php endif; ?>
   </div>
@@ -130,7 +141,30 @@ topbar('Tagihan', count($tagihan).' tagihan & cicilan', $notifs, 'tagihan',
   </form>
 </div></div></div>
 
+<!-- Modal bayar langganan -->
+<div class="modal-bg" id="m-bayar"><div class="modal" style="max-width:380px"><div class="grip"></div><div class="mbody">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h2>💳 Bayar Tagihan</h2><button class="icon-btn" onclick="closeModal('m-bayar')"><?= icon('x',18) ?></button></div>
+  <div id="by-info" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--card2);border-radius:14px;margin-bottom:16px"></div>
+  <form method="post" action="actions.php">
+    <input type="hidden" name="action" value="bayar_langganan"><input type="hidden" name="id" id="by-id"><input type="hidden" name="back" value="?page=tagihan&fp=<?= $_GET['fp']??'bulan' ?>">
+    <div class="field"><label>Bayar dari rekening</label>
+      <select name="dompet_id" id="by-dompet" required>
+        <?php if(!$dompetList): ?><option value="">— belum ada rekening —</option><?php endif; ?>
+        <?php foreach($dompetList as $w): ?><option value="<?= $w['id'] ?>"><?= e($w['emoji'].' '.$w['nama']) ?> (<?= rp($w['saldo']) ?>)</option><?php endforeach; ?>
+      </select>
+    </div>
+    <div class="field"><label>Jumlah bayar (Rp)</label><input type="text" name="bayar" id="by-jml" inputmode="numeric" placeholder="0" oninput="fmtRupiah(this)" required style="font-family:var(--serif);font-size:22px;text-align:center"></div>
+    <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:15px;font-size:16px;font-weight:800">Bayar & Tandai Lunas</button>
+  </form>
+</div></div></div>
+
 <script>
+function openBayar(b){
+  document.getElementById('by-id').value=b.id;
+  document.getElementById('by-jml').value=Number(b.jumlah).toLocaleString('id-ID');
+  document.getElementById('by-info').innerHTML='<div class="cat" style="width:38px;height:38px;font-size:19px;background:'+b.tint+'">'+b.emoji+'</div><div><div style="font-size:14px;font-weight:700">'+b.nama+'</div><div style="font-size:12px;color:var(--soft)">Tagihan rutin</div></div>';
+  openModal('m-bayar');
+}
 function previewCicil(el){
   var bayar=Number((el.value||'').replace(/\D/g,'')); var total=Number(el.dataset.total),terbayar=Number(el.dataset.terbayar);
   var sisa=Math.max(0,total-terbayar-bayar); var prev=el.parentElement.querySelector('.cicil-prev');

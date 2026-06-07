@@ -28,7 +28,7 @@ $dark = !empty($me['dark_mode']);
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="<?= $dark?'dark':'light' ?>">
 <title>Masukkan PIN — Uangku</title>
-<link rel="stylesheet" href="assets/style.css?v=19">
+<link rel="stylesheet" href="assets/style.css?v=20">
 <style>
   body{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;background:linear-gradient(135deg,#1a2230,#2b3447)}
   .pinbox{width:100%;max-width:340px;background:var(--bg);border-radius:26px;padding:34px 28px;box-shadow:0 30px 90px rgba(0,0,0,.4);text-align:center}

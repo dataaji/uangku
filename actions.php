@@ -20,6 +20,17 @@ function redirect($u){
 }
 function num($k){ return (float)preg_replace('/[^\d]/','',$_POST[$k]??'0'); }
 function str_($k){ return trim($_POST[$k]??''); }
+// Pesan kilat (muncul sekali di halaman berikutnya): tipe 'ok' | 'err'
+function flash($m,$t='ok'){ $_SESSION['flash']=['t'=>$t,'m'=>$m]; }
+// Ambil 1 dompet milik user (atau null)
+function dompetById($pdo,$U,$id){ $s=$pdo->prepare('SELECT * FROM dompet WHERE id=? AND user_id=?'); $s->execute([(int)$id,$U]); return $s->fetch() ?: null; }
+// Catat pembayaran tagihan: potong saldo rekening + simpan jejak sbg pengeluaran
+function bayarTagihan($pdo,$U,$b,$jml,$w){
+    $km=katMeta($pdo,'Tagihan');
+    $pdo->prepare('UPDATE dompet SET saldo=saldo-? WHERE id=? AND user_id=?')->execute([$jml,$w['id'],$U]);
+    $pdo->prepare('INSERT INTO transaksi (user_id,emoji,tint,judul,kategori,dompet_id,tanggal,jumlah,catatan,tagihan_id) VALUES (?,?,?,?,?,?,?,?,?,?)')
+        ->execute([$U,$b['emoji']?:$km['emoji'],$b['tint']?:$km['tint'],$b['nama'],'Tagihan',$w['id'],date('Y-m-d'),-$jml,'Pembayaran tagihan',$b['id']]);
+}
 function logAng($pdo,$U,$kat,$aksi,$jml,$batas){ $pdo->prepare('INSERT INTO anggaran_log (user_id,kategori,aksi,jumlah,batas_baru) VALUES (?,?,?,?,?)')->execute([$U,$kat,$aksi,$jml,$batas]); }
 // Baca field komponen jadwal terpadu (tanggal mulai + auto ingatkan + frekuensi)
 function jadwalPost(){
@@ -105,17 +116,45 @@ case 'edit_tagihan': {
     redirect($back);
 }
 case 'delete_tagihan': { $pdo->prepare('DELETE FROM tagihan WHERE id=? AND user_id=?')->execute([(int)$_POST['id'],$U]); redirect($back); }
-case 'toggle_tagihan': {
+case 'toggle_tagihan': {   // batal/reset lunas → kembalikan uang ke rekening (hapus jejak terakhir)
     $id=(int)$_POST['id']; $s=$pdo->prepare('SELECT * FROM tagihan WHERE id=? AND user_id=?'); $s->execute([$id,$U]); $b=$s->fetch();
     if($b){
-        if($b['sudah_bayar'] && $b['berulang']) $pdo->prepare('UPDATE tagihan SET sudah_bayar=0 WHERE id=? AND user_id=?')->execute([$id,$U]);
-        else $pdo->prepare('UPDATE tagihan SET sudah_bayar=1-sudah_bayar WHERE id=? AND user_id=?')->execute([$id,$U]);
+        if($b['sudah_bayar']){   // sedang lunas → batalkan & refund pembayaran terakhir
+            $t=$pdo->prepare('SELECT * FROM transaksi WHERE user_id=? AND tagihan_id=? ORDER BY id DESC LIMIT 1'); $t->execute([$U,$id]); $tx=$t->fetch();
+            if($tx){ $pdo->prepare('UPDATE dompet SET saldo=saldo-? WHERE id=? AND user_id=?')->execute([$tx['jumlah'],$tx['dompet_id'],$U]); // jumlah negatif → saldo bertambah
+                $pdo->prepare('DELETE FROM transaksi WHERE id=? AND user_id=?')->execute([$tx['id'],$U]);
+                flash('Pembayaran '.$b['nama'].' dibatalkan, uang dikembalikan ke rekening.'); }
+            $pdo->prepare('UPDATE tagihan SET sudah_bayar=0 WHERE id=? AND user_id=?')->execute([$id,$U]);
+        } else {                 // belum lunas → tandai lunas tanpa uang (jarang dipakai; pembayaran via modal)
+            $pdo->prepare('UPDATE tagihan SET sudah_bayar=1 WHERE id=? AND user_id=?')->execute([$id,$U]);
+        }
     } redirect($back);
 }
-case 'bayar_cicilan': {
-    $id=(int)$_POST['id']; $bayar=num('bayar'); $s=$pdo->prepare('SELECT * FROM tagihan WHERE id=? AND user_id=?'); $s->execute([$id,$U]); $b=$s->fetch();
-    if($b && $bayar>0){ $baru=min($b['total'],$b['terbayar']+$bayar); $lunas=$baru>=$b['total']?1:0;
+case 'bayar_cicilan': {   // CICILAN: potong rekening + catat pengeluaran
+    $id=(int)$_POST['id']; $bayar=num('bayar'); $w=dompetById($pdo,$U,$_POST['dompet_id']??0);
+    $s=$pdo->prepare('SELECT * FROM tagihan WHERE id=? AND user_id=?'); $s->execute([$id,$U]); $b=$s->fetch();
+    if($b && $bayar>0){
+        $baru=min($b['total'],$b['terbayar']+$bayar); $nyata=$baru-(float)$b['terbayar']; // yg benar2 dibayar (di-cap sisa)
+        if($nyata<=0){ flash('Cicilan ini sudah lunas.','err'); redirect($back); }
+        if(!$w){ flash('Pilih dulu rekening pembayaran.','err'); redirect($back); }
+        if((float)$w['saldo'] < $nyata){ flash('Saldo '.$w['nama'].' tidak cukup (tersisa '.rp($w['saldo']).').','err'); redirect($back); }
+        $lunas=$baru>=$b['total']?1:0;
         $pdo->prepare('UPDATE tagihan SET terbayar=?,sudah_bayar=? WHERE id=? AND user_id=?')->execute([$baru,$lunas,$id,$U]);
+        bayarTagihan($pdo,$U,$b,$nyata,$w);
+        flash('Cicilan '.$b['nama'].' '.rp($nyata).' dibayar dari '.$w['nama'].'.');
+    } redirect($back);
+}
+case 'bayar_langganan': {  // LANGGANAN: tandai lunas + potong rekening + catat pengeluaran
+    $id=(int)$_POST['id']; $w=dompetById($pdo,$U,$_POST['dompet_id']??0);
+    $s=$pdo->prepare('SELECT * FROM tagihan WHERE id=? AND user_id=?'); $s->execute([$id,$U]); $b=$s->fetch();
+    if($b){
+        $bayar=num('bayar')>0?num('bayar'):(float)$b['jumlah'];
+        if($bayar<=0){ flash('Jumlah tagihan belum diisi.','err'); redirect($back); }
+        if(!$w){ flash('Pilih dulu rekening pembayaran.','err'); redirect($back); }
+        if((float)$w['saldo'] < $bayar){ flash('Saldo '.$w['nama'].' tidak cukup (tersisa '.rp($w['saldo']).').','err'); redirect($back); }
+        $pdo->prepare('UPDATE tagihan SET sudah_bayar=1 WHERE id=? AND user_id=?')->execute([$id,$U]);
+        bayarTagihan($pdo,$U,$b,$bayar,$w);
+        flash($b['nama'].' '.rp($bayar).' dibayar dari '.$w['nama'].'.');
     } redirect($back);
 }
 
@@ -147,21 +186,41 @@ case 'add_tabungan': {
             if($perBulan>0 && $bln>0) $catatan='Nabung '.rpShort($perBulan).'/bln → '.$bln.' bulan lagi';
             elseif($perBulan>0) $catatan='Nabung '.rpShort($perBulan).'/bln';
         }
-        $pdo->prepare('INSERT INTO tabungan (user_id,emoji,judul,tint,terkumpul,target,per_bulan,warna,catatan,target_tanggal,ingat_tgl,mulai_tgl,ingatkan,frekuensi,freq_hari,freq_tgl,freq_bulan,selesai_tgl,auto_setor) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-            ->execute([$U,$_POST['emoji']??'🎯',$judul,$_POST['tint']??'#e3ecf6',$saldoAwal,$target,$perBulan,$_POST['warna']??'#3b6fb0',$catatan,$tgl,$ingat,$j['mulai'],$j['ingatkan'],$j['freq'],$j['hari'],$j['tgl'],$j['bulan'],$j['selesai'],isset($_POST['auto_setor'])?1:0]);
+        $pdo->prepare('INSERT INTO tabungan (user_id,emoji,judul,tint,terkumpul,target,per_bulan,warna,catatan,target_tanggal,ingat_tgl,mulai_tgl,ingatkan,frekuensi,freq_hari,freq_tgl,freq_bulan,selesai_tgl,auto_setor,sumber_dompet_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+            ->execute([$U,$_POST['emoji']??'🎯',$judul,$_POST['tint']??'#e3ecf6',$saldoAwal,$target,$perBulan,$_POST['warna']??'#3b6fb0',$catatan,$tgl,$ingat,$j['mulai'],$j['ingatkan'],$j['freq'],$j['hari'],$j['tgl'],$j['bulan'],$j['selesai'],isset($_POST['auto_setor'])?1:0,((int)($_POST['sumber_dompet_id']??0))?:null]);
     } redirect($back);
 }
 case 'edit_tabungan': {
     $j=jadwalPost();
     $tgl   = $j['selesai'];
     $ingat = ($j['ingatkan'] && $j['freq']==='bulanan') ? $j['tgl'] : 0;
-    $pdo->prepare('UPDATE tabungan SET judul=?,target=?,per_bulan=?,catatan=?,emoji=?,target_tanggal=?,ingat_tgl=?,mulai_tgl=?,ingatkan=?,frekuensi=?,freq_hari=?,freq_tgl=?,freq_bulan=?,selesai_tgl=?,auto_setor=? WHERE id=? AND user_id=?')
-        ->execute([str_('judul'),num('target'),num('per_bulan'),str_('catatan'),$_POST['emoji']??'🎯',$tgl,$ingat,$j['mulai'],$j['ingatkan'],$j['freq'],$j['hari'],$j['tgl'],$j['bulan'],$j['selesai'],isset($_POST['auto_setor'])?1:0,(int)$_POST['id'],$U]);
+    $pdo->prepare('UPDATE tabungan SET judul=?,target=?,per_bulan=?,catatan=?,emoji=?,target_tanggal=?,ingat_tgl=?,mulai_tgl=?,ingatkan=?,frekuensi=?,freq_hari=?,freq_tgl=?,freq_bulan=?,selesai_tgl=?,auto_setor=?,sumber_dompet_id=? WHERE id=? AND user_id=?')
+        ->execute([str_('judul'),num('target'),num('per_bulan'),str_('catatan'),$_POST['emoji']??'🎯',$tgl,$ingat,$j['mulai'],$j['ingatkan'],$j['freq'],$j['hari'],$j['tgl'],$j['bulan'],$j['selesai'],isset($_POST['auto_setor'])?1:0,((int)($_POST['sumber_dompet_id']??0))?:null,(int)$_POST['id'],$U]);
     redirect($back);
 }
 case 'delete_tabungan': { $pdo->prepare('DELETE FROM tabungan WHERE id=? AND user_id=?')->execute([(int)$_POST['id'],$U]); redirect($back); }
-case 'tambah_dana': { if(num('dana')>0) $pdo->prepare('UPDATE tabungan SET terkumpul=terkumpul+?, terakhir_setor=CURDATE() WHERE id=? AND user_id=?')->execute([num('dana'),(int)$_POST['id'],$U]); redirect($back); }
-case 'kurangi_dana': { if(num('dana')>0) $pdo->prepare('UPDATE tabungan SET terkumpul=GREATEST(0,terkumpul-?) WHERE id=? AND user_id=?')->execute([num('dana'),(int)$_POST['id'],$U]); redirect($back); }
+case 'tambah_dana': {   // NABUNG: pindahkan uang dari rekening → tabungan
+    $gid=(int)$_POST['id']; $dana=num('dana'); $w=dompetById($pdo,$U,$_POST['dompet_id']??0);
+    $g=$pdo->prepare('SELECT * FROM tabungan WHERE id=? AND user_id=?'); $g->execute([$gid,$U]); $g=$g->fetch();
+    if($g && $dana>0){
+        if(!$w){ flash('Pilih dulu rekening sumber uangnya.','err'); redirect($back); }
+        if((float)$w['saldo'] < $dana){ flash('Saldo '.$w['nama'].' tidak cukup (tersisa '.rp($w['saldo']).').','err'); redirect($back); }
+        $pdo->prepare('UPDATE dompet SET saldo=saldo-? WHERE id=? AND user_id=?')->execute([$dana,$w['id'],$U]);
+        $pdo->prepare('UPDATE tabungan SET terkumpul=terkumpul+?, terakhir_setor=CURDATE() WHERE id=? AND user_id=?')->execute([$dana,$gid,$U]);
+        flash('Berhasil menabung '.rp($dana).' dari '.$w['nama'].'.');
+    } redirect($back);
+}
+case 'kurangi_dana': {  // TARIK: pindahkan uang dari tabungan → rekening
+    $gid=(int)$_POST['id']; $dana=num('dana'); $w=dompetById($pdo,$U,$_POST['dompet_id']??0);
+    $g=$pdo->prepare('SELECT * FROM tabungan WHERE id=? AND user_id=?'); $g->execute([$gid,$U]); $g=$g->fetch();
+    if($g && $dana>0){
+        if(!$w){ flash('Pilih dulu rekening tujuan penarikan.','err'); redirect($back); }
+        if((float)$g['terkumpul'] < $dana){ flash('Saldo tabungan tidak cukup (terkumpul '.rp($g['terkumpul']).').','err'); redirect($back); }
+        $pdo->prepare('UPDATE tabungan SET terkumpul=terkumpul-? WHERE id=? AND user_id=?')->execute([$dana,$gid,$U]);
+        $pdo->prepare('UPDATE dompet SET saldo=saldo+? WHERE id=? AND user_id=?')->execute([$dana,$w['id'],$U]);
+        flash('Berhasil menarik '.rp($dana).' ke '.$w['nama'].'.');
+    } redirect($back);
+}
 
 // ════════════ ANGGARAN ════════════
 case 'add_anggaran': {
