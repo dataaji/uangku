@@ -631,7 +631,8 @@ function sendMail($to,$subject,$html){
     $headers = "MIME-Version: 1.0\r\n".
                "Content-Type: text/html; charset=UTF-8\r\n".
                "From: $from\r\n".
-               "Reply-To: $from\r\n";
+               "Reply-To: $from\r\n".
+               'Message-ID: <'.bin2hex(random_bytes(16)).'@'.$domain.">\r\n";
     return @mail($to, $subject, $html, $headers);
 }
 function _mimeEnc($s){ return '=?UTF-8?B?'.base64_encode($s).'?='; }
@@ -664,10 +665,12 @@ function smtpSend($cfg, $to, $subject, $html){
     if($code($cmd('MAIL FROM:<'.$fromEmail.'>'))!=='250'){ fclose($fp); return false; }
     if($code($cmd('RCPT TO:<'.$to.'>'))[0]!=='2'){ fclose($fp); return false; }
     if($code($cmd('DATA'))!=='354'){ fclose($fp); return false; }
+    $dom = substr(strrchr($fromEmail,'@'),1) ?: 'localhost';
     $headers ='From: '._mimeEnc($fromName).' <'.$fromEmail.">\r\n";
     $headers.='To: <'.$to.">\r\n";
     $headers.='Subject: '._mimeEnc($subject)."\r\n";
     $headers.='Date: '.date('r')."\r\n";
+    $headers.='Message-ID: <'.bin2hex(random_bytes(16)).'@'.$dom.">\r\n";  // wajib untuk Gmail
     $headers.="MIME-Version: 1.0\r\n";
     $headers.="Content-Type: text/html; charset=UTF-8\r\n";
     $body=preg_replace('/^\./m','..',$html);                  // dot-stuffing
