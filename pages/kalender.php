@@ -21,6 +21,54 @@ $nextB=$cb+1;$nextY=$cy;if($nextB>12){$nextB=1;$nextY++;}
 $isCur=($cb==(int)date('n')&&$cy==(int)date('Y')); $today=(int)date('j');
 $PRIO=['tinggi'=>'var(--red)','sedang'=>'var(--amber)','rendah'=>'var(--green)'];
 
+// ── Daftar SEMUA kerjaan (prioritas + tenggat) ──────────────
+$allTugas=getTugas($pdo); $todayStr=date('Y-m-d');
+$prioRank=['tinggi'=>0,'sedang'=>1,'rendah'=>2];
+$aktif=array_values(array_filter($allTugas,fn($t)=>!$t['selesai']));
+$selesaiTugas=array_values(array_filter($allTugas,fn($t)=>$t['selesai']));
+usort($aktif,function($a,$b) use($prioRank){
+    $ta=$a['tanggal']?:'9999-12-31'; $tb=$b['tanggal']?:'9999-12-31';
+    if($ta!==$tb) return strcmp($ta,$tb);
+    return ($prioRank[$a['prioritas']]??1)<=>($prioRank[$b['prioritas']]??1);
+});
+$gTelat=[];$gIni=[];$gNanti=[];$gTanpa=[];
+foreach($aktif as $t){
+    if(!$t['tanggal']) $gTanpa[]=$t;
+    elseif($t['tanggal']<$todayStr) $gTelat[]=$t;
+    elseif($t['tanggal']===$todayStr) $gIni[]=$t;
+    else $gNanti[]=$t;
+}
+function dueLabel($tgl,$todayStr){
+    if(!$tgl) return ['Tanpa tanggal','var(--muted)'];
+    $d=(int)round((strtotime($tgl)-strtotime($todayStr))/86400);
+    if($d<0)  return ['Telat '.abs($d).' hari','var(--red)'];
+    if($d===0)return ['Hari ini','var(--amber)'];
+    if($d===1)return ['Besok','var(--blue)'];
+    return [$d.' hari lagi','var(--soft)'];
+}
+function agendaRow($t,$todayStr,$PRIO,$backUrl){
+    $pc=$PRIO[$t['prioritas']]??'var(--amber)';
+    [$dl,$dc]=dueLabel($t['tanggal']??'',$todayStr);
+    ?>
+    <div class="card" style="display:flex;align-items:flex-start;gap:12px;padding:13px 14px;margin-bottom:9px;<?= $t['selesai']?'opacity:.55':'' ?>">
+      <form method="post" action="actions.php"><input type="hidden" name="action" value="toggle_tugas"><input type="hidden" name="id" value="<?= $t['id'] ?>"><input type="hidden" name="back" value="<?= e($backUrl) ?>">
+        <button style="width:24px;height:24px;border-radius:8px;border:2px solid <?= $t['selesai']?'var(--green)':'var(--line)' ?>;background:<?= $t['selesai']?'var(--green)':'transparent' ?>;display:flex;align-items:center;justify-content:center;margin-top:1px"><?= $t['selesai']?icon('check',14,'#fff',3):'' ?></button>
+      </form>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap"><span style="width:8px;height:8px;border-radius:4px;background:<?= $pc ?>"></span><span style="font-size:14px;font-weight:700;<?= $t['selesai']?'text-decoration:line-through':'' ?>"><?= e($t['judul']) ?></span></div>
+        <?php if($t['catatan']): ?><div style="font-size:12px;color:var(--soft);margin-top:4px;margin-left:15px"><?= e($t['catatan']) ?></div><?php endif; ?>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;margin-left:15px">
+          <?php if(!$t['selesai']): ?><span class="pill" style="background:var(--card2);color:<?= $dc ?>;font-size:10.5px;padding:2px 8px;font-weight:700"><?= $dl ?><?= $t['tanggal']?' · '.date('j/n',strtotime($t['tanggal'])):'' ?><?= $t['waktu']?' '.e($t['waktu']):'' ?></span><?php endif; ?>
+          <span class="pill" style="background:var(--card2);color:<?= $pc ?>;font-size:10.5px;padding:2px 8px;font-weight:700"><?= ucfirst($t['prioritas']) ?></span>
+        </div>
+      </div>
+      <div class="card-actions">
+        <button class="mini-btn" onclick='editTugas(<?= json_encode($t,JSON_HEX_APOS|JSON_HEX_QUOT) ?>)'><?= icon('edit',14) ?></button>
+        <form method="post" action="actions.php" data-confirm="Hapus kerjaan ini?"><input type="hidden" name="action" value="delete_tugas"><input type="hidden" name="id" value="<?= $t['id'] ?>"><input type="hidden" name="back" value="<?= e($backUrl) ?>"><button class="mini-btn danger"><?= icon('trash',14) ?></button></form>
+      </div>
+    </div>
+<?php }
+
 $pickB='<select onchange="location=this.value" class="picker">'; for($m=1;$m<=12;$m++)$pickB.='<option value="?page=kalender&cb='.$m.'&cy='.$cy.'&hari=1" '.($m==$cb?'selected':'').'>'.$NAMA_BULAN[$m].'</option>'; $pickB.='</select>';
 $pickY='<select onchange="location=this.value" class="picker">'; for($y=date('Y')-5;$y<=date('Y')+3;$y++)$pickY.='<option value="?page=kalender&cb='.$cb.'&cy='.$y.'&hari=1" '.($y==$cy?'selected':'').'>'.$y.'</option>'; $pickY.='</select>';
 
@@ -117,6 +165,33 @@ topbar('Kalender & Agenda', 'Kerjaan, catatan & jadwal keuangan', $notifs, 'kale
           <?= icon('chevR',15,'var(--muted)') ?>
         </a>
       <?php endforeach; ?>
+    <?php endif; ?>
+  </div>
+</div>
+
+<!-- DAFTAR SEMUA KERJAAN (prioritas + tenggat) -->
+<div class="sec-head" style="margin-top:28px"><span class="lbl" style="color:var(--amber)"><?= icon('task',16,'var(--amber)') ?> Semua Kerjaan · <?= count($aktif) ?> aktif</span>
+  <button class="btn btn-ghost btn-sm" onclick="openTugas()"><?= icon('plus',13,'currentColor',2.5) ?> Tambah</button></div>
+<?php if(!$aktif && !$selesaiTugas): ?>
+  <div class="card" style="padding:16px;font-size:13px;color:var(--muted)">Belum ada kerjaan. Klik “Tambah” untuk mencatat tugas + prioritas & tenggatnya.</div>
+<?php endif; ?>
+<div class="grid-fit">
+  <div>
+    <?php foreach([['🔴 Telat',$gTelat,'var(--red)'],['📌 Hari ini',$gIni,'var(--amber)']] as [$lbl,$list,$col]): if(!$list) continue; ?>
+      <div style="font-size:12px;font-weight:800;color:<?= $col ?>;margin:14px 2px 8px"><?= $lbl ?> · <?= count($list) ?></div>
+      <?php foreach($list as $t) agendaRow($t,$todayStr,$PRIO,$backUrl); ?>
+    <?php endforeach; ?>
+  </div>
+  <div>
+    <?php foreach([['🗓️ Mendatang',$gNanti,'var(--blue)'],['📋 Tanpa tanggal',$gTanpa,'var(--muted)']] as [$lbl,$list,$col]): if(!$list) continue; ?>
+      <div style="font-size:12px;font-weight:800;color:<?= $col ?>;margin:14px 2px 8px"><?= $lbl ?> · <?= count($list) ?></div>
+      <?php foreach($list as $t) agendaRow($t,$todayStr,$PRIO,$backUrl); ?>
+    <?php endforeach; ?>
+    <?php if($selesaiTugas): ?>
+      <details style="margin-top:14px">
+        <summary style="font-size:12px;font-weight:800;color:var(--green);cursor:pointer;padding:6px 2px">✅ Selesai · <?= count($selesaiTugas) ?></summary>
+        <div style="margin-top:8px"><?php foreach($selesaiTugas as $t) agendaRow($t,$todayStr,$PRIO,$backUrl); ?></div>
+      </details>
     <?php endif; ?>
   </div>
 </div>
