@@ -473,13 +473,12 @@ function getNotifs($pdo,$bulan,$tahun){
         $d=str_pad((string)min($b['tgl_jatuh_tempo'],(int)date('t')),2,'0',STR_PAD_LEFT);
         $st=stageNotif(strtotime(date('Y-m-').$d),'bill-'.$b['id'],$dibaca); if(!$st) continue;
         [$k,$days]=$st;
-        $isP=($b['jenis']??'')==='piutang';
-        $sisaP=(float)$b['total']-(float)$b['terbayar'];
-        $notifs[]=['key'=>$k,'emoji'=>$days<0?'🔴':($isP?'🤝':$b['emoji']),'tint'=>$days<0?'#fde3e6':$b['tint'],
-            'title'=>$isP
-                ? "Piutang {$b['nama']} ".($days<0?'TELAT ditagih — ':'jatuh tempo ').$kapan($days)
-                : "Tagihan {$b['nama']} ".($days<0?'TELAT — ':'jatuh tempo ').$kapan($days),
-            'sub'=>($isP?'Belum kembali '.rp($sisaP):rp($b['jumlah']).($b['deskripsi']?' · '.$b['deskripsi']:'')),'go'=>'tagihan','dibaca'=>false];
+        $jn=$b['jenis']??''; $isP=$jn==='piutang'; $isH=$jn==='hutang'; $sisaPH=(float)$b['total']-(float)$b['terbayar'];
+        $notifs[]=['key'=>$k,'emoji'=>$days<0?'🔴':($isP?'🤝':($isH?'🙏':$b['emoji'])),'tint'=>$days<0?'#fde3e6':$b['tint'],
+            'title'=>$isP ? "Piutang {$b['nama']} ".($days<0?'TELAT ditagih — ':'jatuh tempo ').$kapan($days)
+                  : ($isH ? "Hutang ke {$b['nama']} ".($days<0?'TELAT bayar — ':'jatuh tempo ').$kapan($days)
+                  : "Tagihan {$b['nama']} ".($days<0?'TELAT — ':'jatuh tempo ').$kapan($days)),
+            'sub'=>(($isP||$isH)?'Sisa '.rp($sisaPH):rp($b['jumlah']).($b['deskripsi']?' · '.$b['deskripsi']:'')),'go'=>'tagihan','dibaca'=>false];
     }
     // Tabungan: target tanggal (bertahap) + pengingat menabung bulanan
     foreach(getTabungan($pdo) as $g){
@@ -561,8 +560,8 @@ function getAgendaHari($pdo,$tgl){
     foreach($s->fetchAll() as $t) $items[]=['kind'=>'Tugas','color'=>'#d99a2b','emoji'=>'✅','title'=>$t['judul'],'sub'=>($t['waktu']?:'').($t['catatan']?' · '.$t['catatan']:''),'go'=>'kerjaan'];
     $s=$pdo->prepare('SELECT * FROM catatan WHERE user_id=? AND tanggal=?'); $s->execute([uid(),$tgl]);
     foreach($s->fetchAll() as $c) $items[]=['kind'=>'Catatan','color'=>'#8a5fb0','emoji'=>'📝','title'=>$c['judul'],'sub'=>$c['isi']?:'','go'=>'kalender'];
-    if($m==(int)date('n')&&$y==(int)date('Y')) foreach(getTagihan($pdo) as $b) if($b['tgl_jatuh_tempo']==$day){ $isP=($b['jenis']??'')==='piutang';
-        $items[]=['kind'=>$isP?'Piutang':'Tagihan','color'=>'#3b6fb0','emoji'=>$isP?'🤝':$b['emoji'],'title'=>$b['nama'].($isP?' harus kembali':' jatuh tempo'),'sub'=>$isP?('Sisa '.rp((float)$b['total']-(float)$b['terbayar'])):rp($b['jumlah']),'go'=>'tagihan']; }
+    if($m==(int)date('n')&&$y==(int)date('Y')) foreach(getTagihan($pdo) as $b) if($b['tgl_jatuh_tempo']==$day){ $jn=$b['jenis']??''; $isP=$jn==='piutang'; $isH=$jn==='hutang';
+        $items[]=['kind'=>$isP?'Piutang':($isH?'Hutang':'Tagihan'),'color'=>'#3b6fb0','emoji'=>$isP?'🤝':($isH?'🙏':$b['emoji']),'title'=>$b['nama'].($isP?' harus kembali':($isH?' harus dibayar':' jatuh tempo')),'sub'=>($isP||$isH)?('Sisa '.rp((float)$b['total']-(float)$b['terbayar'])):rp($b['jumlah']),'go'=>'tagihan']; }
     return $items;
 }
 

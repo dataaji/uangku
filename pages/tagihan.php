@@ -4,13 +4,16 @@ $dompetList=getDompet($pdo);
 $filter=$_GET['fp']??'bulan'; // minggu | bulan | tahun
 $today=(int)date('j');
 
-// pisahkan piutang (orang berhutang ke kita) dari tagihan biasa
-$piutangs=[]; $due=[]; $overdue=[]; $lunas=[];
+// pisahkan piutang (orang berhutang ke kita) & hutang (kita berhutang) dari tagihan biasa
+$piutangs=[]; $hutangs=[]; $due=[]; $overdue=[]; $lunas=[];
 foreach($tagihan as $b){
-  if(($b['jenis']??'')==='piutang'){ $piutangs[]=$b; continue; }
+  $jn=$b['jenis']??'';
+  if($jn==='piutang'){ $piutangs[]=$b; continue; }
+  if($jn==='hutang'){ $hutangs[]=$b; continue; }
   $st=tagihanStatus($b); if($st==='lunas')$lunas[]=$b; elseif($st==='overdue')$overdue[]=$b; else $due[]=$b;
 }
 $pTot=array_sum(array_column($piutangs,'total')); $pKembali=array_sum(array_column($piutangs,'terbayar')); $pSisa=$pTot-$pKembali;
+$hTot=array_sum(array_column($hutangs,'total')); $hBayar=array_sum(array_column($hutangs,'terbayar')); $hSisa=$hTot-$hBayar;
 $totDue=array_sum(array_column($due,'jumlah'));
 $totOver=array_sum(array_column($overdue,'jumlah'));
 $totLunas=array_sum(array_column($lunas,'jumlah'));
@@ -109,13 +112,46 @@ function piutangCard($b){ global $dompetList;
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:9px;gap:10px;flex-wrap:wrap">
       <span style="font-size:12.5px;font-weight:700">Kembali <?= rp($b['terbayar']) ?> / <?= rp($b['total']) ?> · sisa <?= rpShort($sisa) ?></span>
       <?php if(!$lunas): ?>
-      <button class="btn btn-primary btn-sm" onclick='openTerima(<?= json_encode($b,JSON_HEX_APOS|JSON_HEX_QUOT) ?>)'>💰 Terima bayar</button>
+      <button class="btn btn-primary btn-sm" onclick='openTerima(<?= json_encode($b,JSON_HEX_APOS|JSON_HEX_QUOT) ?>,"piutang")'>💰 Terima bayar</button>
       <?php endif; ?>
     </div>
   </div>
 <?php }
 
-topbar('Tagihan', count($tagihan).' tagihan, cicilan & piutang', $notifs, 'tagihan',
+// Kartu HUTANG (kita berhutang ke orang)
+function hutangCard($b){ global $dompetList;
+  $sisa=max(0,(float)$b['total']-(float)$b['terbayar']);
+  $pct=$b['total']>0?round($b['terbayar']/$b['total']*100):0;
+  $lunas=!empty($b['sudah_bayar']) || $sisa<=0;
+  ?>
+  <div class="card" style="padding:16px 18px;margin-bottom:12px;border-left:4px solid <?= $lunas?'var(--green)':'var(--red)' ?>">
+    <div style="display:flex;align-items:center;gap:14px">
+      <div class="cat" style="width:46px;height:46px;font-size:22px;background:<?= $b['tint']?:'#f7e6da' ?>">🙏</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+          <span style="font-size:15px;font-weight:700"><?= e($b['nama']) ?></span>
+          <?php if($lunas): ?><span class="pill" style="background:var(--greenT);color:var(--green);font-size:10px;padding:2px 8px">✅ Lunas</span>
+          <?php else: ?><span class="pill" style="background:var(--redT);color:var(--red);font-size:10px;padding:2px 8px">🙏 Belum lunas</span><?php endif; ?>
+        </div>
+        <div style="font-size:12.5px;color:var(--soft);margin-top:3px">Hutang <?= rp($b['total']) ?><?= !empty($b['selesai_tgl'])?' · bayar '.tglIndo($b['selesai_tgl']):'' ?><?= $b['deskripsi']?' · '.e($b['deskripsi']):'' ?></div>
+        <?php if($b['catatan']): ?><div style="font-size:11.5px;color:var(--muted);margin-top:2px">📝 <?= e($b['catatan']) ?></div><?php endif; ?>
+      </div>
+      <div class="card-actions">
+        <button class="mini-btn" onclick='editHutang(<?= json_encode($b,JSON_HEX_APOS|JSON_HEX_QUOT) ?>)'><?= icon('edit',15) ?></button>
+        <form method="post" action="actions.php" data-confirm="Hapus catatan hutang <?= e($b['nama']) ?>? (saldo dompet tidak berubah)"><input type="hidden" name="action" value="delete_tagihan"><input type="hidden" name="id" value="<?= $b['id'] ?>"><input type="hidden" name="back" value="?page=tagihan"><button class="mini-btn danger"><?= icon('trash',15) ?></button></form>
+      </div>
+    </div>
+    <div class="prog" style="margin-top:12px"><i style="width:<?= min(100,$pct) ?>%;background:var(--red)"></i></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:9px;gap:10px;flex-wrap:wrap">
+      <span style="font-size:12.5px;font-weight:700">Dibayar <?= rp($b['terbayar']) ?> / <?= rp($b['total']) ?> · sisa <?= rpShort($sisa) ?></span>
+      <?php if(!$lunas): ?>
+      <button class="btn btn-primary btn-sm" onclick='openTerima(<?= json_encode($b,JSON_HEX_APOS|JSON_HEX_QUOT) ?>,"hutang")'>💸 Bayar</button>
+      <?php endif; ?>
+    </div>
+  </div>
+<?php }
+
+topbar('Tagihan', count($tagihan).' tagihan, piutang & hutang', $notifs, 'tagihan',
   '<button class="btn btn-ghost hide-mobile" onclick="openTagihan()">'.icon('plus',16,'currentColor',2.5).' Tagihan</button>');
 ?>
 
@@ -152,16 +188,26 @@ topbar('Tagihan', count($tagihan).' tagihan, cicilan & piutang', $notifs, 'tagih
   <?php foreach($piutangs as $b) piutangCard($b); ?>
 <?php endif; ?>
 
+<?php if($hutangs): ?>
+  <div class="eyebrow" style="margin-top:22px;color:var(--red)">🙏 Hutang — kamu berhutang ke orang · <?= count($hutangs) ?></div>
+  <div class="card" style="padding:14px 18px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:var(--redT)">
+    <div style="font-size:12.5px;font-weight:700;color:var(--red)">❤️ Total hutang <?= rp($hTot) ?></div>
+    <div style="font-size:12.5px;font-weight:700;color:var(--red)">Belum dibayar <b><?= rp($hSisa) ?></b></div>
+  </div>
+  <?php foreach($hutangs as $b) hutangCard($b); ?>
+<?php endif; ?>
+
 <!-- Modal tambah/edit tagihan -->
 <div class="modal-bg" id="m-tagihan"><div class="modal"><div class="grip"></div><div class="mbody">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h2 id="tg-title">Tagihan Baru 💡</h2><button class="icon-btn" onclick="closeModal('m-tagihan')"><?= icon('x',18) ?></button></div>
   <form method="post" action="actions.php">
     <input type="hidden" name="action" id="tg-act" value="add_tagihan"><input type="hidden" name="id" id="tg-id"><input type="hidden" name="back" value="?page=tagihan">
     <input type="hidden" name="emoji" data-emoji id="tg-emoji" value="💡"><input type="hidden" name="tint" data-tint value="#f7ecd5">
-    <div class="seg seg-3" id="tg-seg">
+    <div class="seg seg-4" id="tg-seg">
       <input type="radio" name="jenis" id="jn-l" value="langganan" checked onchange="tgJenis('langganan')"><label for="jn-l">🔁 Langganan</label>
       <input type="radio" name="jenis" id="jn-c" value="cicilan" onchange="tgJenis('cicilan')"><label for="jn-c">📅 Cicilan</label>
       <input type="radio" name="jenis" id="jn-p" value="piutang" onchange="tgJenis('piutang')"><label for="jn-p">🤝 Piutang</label>
+      <input type="radio" name="jenis" id="jn-h" value="hutang" onchange="tgJenis('hutang')"><label for="jn-h">🙏 Hutang</label>
     </div>
     <div class="field" id="tg-ficon"><label>Ikon</label><div class="emoji-pick">
       <?php $ti=[['💡','#f7ecd5'],['📶','#e3ecf6'],['🎬','#ede4f4'],['🎵','#e4f0ea'],['💧','#e3ecf6'],['🏠','#f7e6da'],['📱','#f7ecd5'],['🚗','#f6e4e1']];
@@ -169,16 +215,16 @@ topbar('Tagihan', count($tagihan).' tagihan, cicilan & piutang', $notifs, 'tagih
     </div></div>
     <div class="field"><label id="tg-nlbl">Nama</label><input type="text" name="nama" id="tg-nama" placeholder="Contoh: IndiHome / Cicilan Motor" required></div>
 
-    <!-- PIUTANG: orang berhutang ke kita -->
+    <!-- PIUTANG (orang berhutang ke kita) / HUTANG (kita berhutang) — blok dipakai bersama -->
     <div id="tg-piutang" style="display:none">
-      <div style="font-size:12px;color:var(--soft);margin:0 2px 12px">Catat saat kamu menghutangi orang. Uang keluar dari dompet yang dipilih; saat dia bayar (boleh nyicil), uang balik ke dompet.</div>
-      <div class="field"><label>Uang diambil dari dompet</label>
+      <div id="tg-pt-hint" style="font-size:12px;color:var(--soft);margin:0 2px 12px"></div>
+      <div class="field"><label id="tg-pt-dlbl">Uang diambil dari dompet</label>
         <select name="dompet_id" id="tg-pt-dompet" disabled>
           <?php if(!$dompetList): ?><option value="">— belum ada dompet —</option><?php endif; ?>
           <?php foreach($dompetList as $w): ?><option value="<?= $w['id'] ?>"><?= e($w['emoji'].' '.$w['nama']) ?> (<?= rp($w['saldo']) ?>)</option><?php endforeach; ?>
         </select>
       </div>
-      <div class="field"><label>Jumlah dipinjamkan (Rp)</label><input type="text" name="total" id="tg-pt-total" inputmode="numeric" placeholder="0" oninput="fmtRupiah(this)" disabled style="font-family:var(--serif);font-size:22px;text-align:center"></div>
+      <div class="field"><label id="tg-pt-tlbl">Jumlah dipinjamkan (Rp)</label><input type="text" name="total" id="tg-pt-total" inputmode="numeric" placeholder="0" oninput="fmtRupiah(this)" disabled style="font-family:var(--serif);font-size:22px;text-align:center"></div>
       <div class="field"><label>Tanggal harus lunas (kosongkan jika tanpa tenggat)</label><input type="date" name="tempo_tgl" id="tg-pt-tempo" disabled></div>
       <div class="field"><label>Catatan (opsional)</label><input type="text" name="catatan" id="tg-pt-cat" placeholder="Contoh: buat modal usaha" disabled></div>
     </div>
@@ -219,45 +265,53 @@ topbar('Tagihan', count($tagihan).' tagihan, cicilan & piutang', $notifs, 'tagih
   </form>
 </div></div></div>
 
-<!-- Modal TERIMA pembayaran piutang -->
+<!-- Modal TERIMA pembayaran piutang / BAYAR hutang (dipakai bersama) -->
 <div class="modal-bg" id="m-terima"><div class="modal" style="max-width:380px"><div class="grip"></div><div class="mbody">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h2>💰 Terima Pembayaran</h2><button class="icon-btn" onclick="closeModal('m-terima')"><?= icon('x',18) ?></button></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h2 id="tr-title">💰 Terima Pembayaran</h2><button class="icon-btn" onclick="closeModal('m-terima')"><?= icon('x',18) ?></button></div>
   <div id="tr-info" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--card2);border-radius:14px;margin-bottom:16px"></div>
   <form method="post" action="actions.php">
-    <input type="hidden" name="action" value="bayar_piutang"><input type="hidden" name="id" id="tr-id"><input type="hidden" name="back" value="?page=tagihan">
-    <div class="field"><label>Uang masuk ke dompet</label>
+    <input type="hidden" name="action" id="tr-act" value="bayar_piutang"><input type="hidden" name="id" id="tr-id"><input type="hidden" name="back" value="?page=tagihan">
+    <div class="field"><label id="tr-dlbl">Uang masuk ke dompet</label>
       <select name="dompet_id" id="tr-dompet" required>
         <?php if(!$dompetList): ?><option value="">— belum ada dompet —</option><?php endif; ?>
         <?php foreach($dompetList as $w): ?><option value="<?= $w['id'] ?>"><?= e($w['emoji'].' '.$w['nama']) ?> (<?= rp($w['saldo']) ?>)</option><?php endforeach; ?>
       </select>
     </div>
-    <div class="field"><label>Jumlah dikembalikan (Rp)</label><input type="text" name="bayar" id="tr-jml" inputmode="numeric" placeholder="0" oninput="fmtRupiah(this)" required style="font-family:var(--serif);font-size:22px;text-align:center"><div style="font-size:11px;color:var(--soft);margin-top:5px">Boleh sebagian kalau dia nyicil — sisanya tetap tercatat.</div></div>
-    <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:15px;font-size:16px;font-weight:800">Terima & Catat</button>
+    <div class="field"><label id="tr-jlbl">Jumlah dikembalikan (Rp)</label><input type="text" name="bayar" id="tr-jml" inputmode="numeric" placeholder="0" oninput="fmtRupiah(this)" required style="font-family:var(--serif);font-size:22px;text-align:center"><div style="font-size:11px;color:var(--soft);margin-top:5px">Boleh sebagian kalau nyicil — sisanya tetap tercatat.</div></div>
+    <button type="submit" id="tr-submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:15px;font-size:16px;font-weight:800">Terima & Catat</button>
   </form>
 </div></div></div>
 
 <script>
-function editPiutang(b){
-  // buka modal tagihan langsung di segmen Piutang (mode edit)
-  document.getElementById('tg-title').textContent='Edit Piutang';
+function editPH(b,type){  // edit piutang/hutang (segmen di modal tagihan)
+  var piu=(type==='piutang');
+  document.getElementById('tg-title').textContent=piu?'Edit Piutang':'Edit Hutang';
   document.getElementById('tg-id').value=b.id;
   document.getElementById('tg-nama').value=b.nama;
   document.getElementById('tg-pt-cat').value=b.catatan||'';
   document.getElementById('tg-pt-tempo').value=b.selesai_tgl||'';
   document.getElementById('tg-pt-total').value=b.total>0?Number(b.total).toLocaleString('id-ID'):'';
   _tgEdit=true;
-  document.getElementById('jn-p').checked=true; document.getElementById('tg-seg').style.display='flex';
-  tgJenis('piutang');
-  // saat edit, sumber dompet & jumlah tidak bisa diubah (uang sudah keluar)
+  document.getElementById(piu?'jn-p':'jn-h').checked=true; document.getElementById('tg-seg').style.display='flex';
+  tgJenis(type);
+  // saat edit, dompet & jumlah tidak bisa diubah (uang sudah berpindah)
   document.getElementById('tg-pt-dompet').disabled=true; document.getElementById('tg-pt-dompet').parentElement.style.display='none';
   document.getElementById('tg-pt-total').disabled=true; document.getElementById('tg-pt-total').parentElement.style.display='none';
   openModal('m-tagihan');
 }
-function openTerima(b){
+function editPiutang(b){ editPH(b,'piutang'); }
+function editHutang(b){ editPH(b,'hutang'); }
+function openTerima(b,type){
+  var piu=(type==='piutang');
+  document.getElementById('tr-act').value=piu?'bayar_piutang':'bayar_hutang';
   document.getElementById('tr-id').value=b.id;
   var sisa=Math.max(0,Number(b.total)-Number(b.terbayar));
   document.getElementById('tr-jml').value=sisa.toLocaleString('id-ID');
-  document.getElementById('tr-info').innerHTML='<div class="cat" style="width:38px;height:38px;font-size:19px;background:#e3ecf6">🤝</div><div><div style="font-size:14px;font-weight:700">'+b.nama+'</div><div style="font-size:12px;color:var(--soft)">Sisa piutang Rp'+sisa.toLocaleString('id-ID')+'</div></div>';
+  document.getElementById('tr-title').textContent=piu?'💰 Terima Pembayaran':'💸 Bayar Hutang';
+  document.getElementById('tr-dlbl').textContent=piu?'Uang masuk ke dompet':'Bayar dari dompet';
+  document.getElementById('tr-jlbl').textContent=piu?'Jumlah dikembalikan (Rp)':'Jumlah dibayar (Rp)';
+  document.getElementById('tr-submit').textContent=piu?'Terima & Catat':'Bayar';
+  document.getElementById('tr-info').innerHTML='<div class="cat" style="width:38px;height:38px;font-size:19px;background:'+(piu?'#e3ecf6':'#f7e6da')+'">'+(piu?'🤝':'🙏')+'</div><div><div style="font-size:14px;font-weight:700">'+b.nama+'</div><div style="font-size:12px;color:var(--soft)">Sisa '+(piu?'piutang':'hutang')+' Rp'+sisa.toLocaleString('id-ID')+'</div></div>';
   openModal('m-terima');
 }
 function openBayar(b){
@@ -273,30 +327,36 @@ function previewCicil(el){
 }
 var _tgEdit=false;
 function tgJenis(j){
-  var cic=(j==='cicilan'), piu=(j==='piutang');
-  // blok piutang vs tagihan biasa
-  document.getElementById('tg-piutang').style.display=piu?'block':'none';
-  document.getElementById('tg-ficon').style.display=piu?'none':'';
-  document.getElementById('tg-detail').style.display=piu?'none':'';
+  var cic=(j==='cicilan'), piu=(j==='piutang'), hut=(j==='hutang'), special=piu||hut;
+  // blok piutang/hutang vs tagihan biasa
+  document.getElementById('tg-piutang').style.display=special?'block':'none';
+  document.getElementById('tg-ficon').style.display=special?'none':'';
+  document.getElementById('tg-detail').style.display=special?'none':'';
   document.getElementById('tg-cicil').style.display=cic?'block':'none';
   document.getElementById('tg-hitung').style.display=cic?'block':'none';
   document.getElementById('tg-jlbl').textContent=cic?'Cicilan / bulan (Rp)':'Jumlah / bulan (Rp)';
   document.getElementById('tg-jhint').textContent=cic?'Estimasi lama lunas dihitung otomatis di bawah.':'';
   // aktif/nonaktif input agar tidak bentrok nama (total/catatan) & required tersembunyi
-  document.getElementById('tg-pt-dompet').disabled=!piu;
-  document.getElementById('tg-pt-total').disabled=!piu;
-  document.getElementById('tg-pt-tempo').disabled=!piu;
-  document.getElementById('tg-pt-cat').disabled=!piu;
-  document.getElementById('tg-total').disabled=piu;
-  document.getElementById('tg-jumlah').disabled=piu;
-  document.getElementById('tg-cat').disabled=piu;
-  // label nama
-  document.getElementById('tg-nlbl').textContent=piu?'Nama orang':'Nama';
-  document.getElementById('tg-nama').placeholder=piu?'Contoh: Andi':'Contoh: IndiHome / Cicilan Motor';
-  if(piu){
-    document.getElementById('tg-act').value=_tgEdit?'edit_piutang':'add_piutang';
-    document.getElementById('tg-submit').textContent=_tgEdit?'Simpan Perubahan':'Simpan Piutang';
-    if(!_tgEdit) document.getElementById('tg-title').textContent='🤝 Catat Piutang';
+  document.getElementById('tg-pt-dompet').disabled=!special;
+  document.getElementById('tg-pt-total').disabled=!special;
+  document.getElementById('tg-pt-tempo').disabled=!special;
+  document.getElementById('tg-pt-cat').disabled=!special;
+  document.getElementById('tg-total').disabled=special;
+  document.getElementById('tg-jumlah').disabled=special;
+  document.getElementById('tg-cat').disabled=special;
+  // label dinamis untuk piutang/hutang
+  document.getElementById('tg-nlbl').textContent=piu?'Nama orang':(hut?'Hutang ke siapa':'Nama');
+  document.getElementById('tg-nama').placeholder=piu?'Contoh: Andi':(hut?'Contoh: Budi / Bank':'Contoh: IndiHome / Cicilan Motor');
+  document.getElementById('tg-pt-dlbl').textContent=hut?'Uang masuk ke dompet':'Uang diambil dari dompet';
+  document.getElementById('tg-pt-tlbl').textContent=hut?'Jumlah hutang (Rp)':'Jumlah dipinjamkan (Rp)';
+  document.getElementById('tg-pt-hint').textContent=hut
+    ? 'Catat saat kamu meminjam uang. Uang masuk ke dompet yang dipilih; saat kamu bayar (boleh nyicil), uang keluar dari dompet.'
+    : 'Catat saat kamu menghutangi orang. Uang keluar dari dompet yang dipilih; saat dia bayar (boleh nyicil), uang balik ke dompet.';
+  if(special){
+    var addAct=piu?'add_piutang':'add_hutang', editAct=piu?'edit_piutang':'edit_hutang';
+    document.getElementById('tg-act').value=_tgEdit?editAct:addAct;
+    document.getElementById('tg-submit').textContent=_tgEdit?'Simpan Perubahan':(piu?'Simpan Piutang':'Simpan Hutang');
+    if(!_tgEdit) document.getElementById('tg-title').textContent=piu?'🤝 Catat Piutang':'🙏 Catat Hutang';
     document.getElementById('tg-pt-total').required=!_tgEdit;
     document.getElementById('tg-pt-dompet').required=!_tgEdit;
   } else {
