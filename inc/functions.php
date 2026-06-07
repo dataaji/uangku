@@ -628,14 +628,25 @@ function sendMail($to,$subject,$html){
     $domain = $_SERVER['HTTP_HOST'] ?? 'uangku.ledgerid.site';
     $domain = preg_replace('/^www\./','',$domain);
     $from = 'Uangku <noreply@'.$domain.'>';
+    $mime = _buildMime($html);
     $headers = "MIME-Version: 1.0\r\n".
-               "Content-Type: text/html; charset=UTF-8\r\n".
+               'Content-Type: '.$mime['ctype']."\r\n".
                "From: $from\r\n".
                "Reply-To: $from\r\n".
                'Message-ID: <'.bin2hex(random_bytes(16)).'@'.$domain.">\r\n";
-    return @mail($to, $subject, $html, $headers);
+    return @mail($to, $subject, $mime['body'], $headers);
 }
 function _mimeEnc($s){ return '=?UTF-8?B?'.base64_encode($s).'?='; }
+// Susun email multipart (teks + HTML) — kurangi kemungkinan masuk spam
+function _buildMime($html){
+    $b = '=_uangku_'.bin2hex(random_bytes(8));
+    $text = str_ireplace(['<br>','<br/>','<br />','</p>','</div>','</h1>','</h2>'], "\n", $html);
+    $text = trim(preg_replace("/\n{3,}/", "\n\n", html_entity_decode(strip_tags($text), ENT_QUOTES, 'UTF-8')));
+    $body  = "--$b\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n".$text."\r\n\r\n";
+    $body .= "--$b\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n".$html."\r\n\r\n";
+    $body .= "--$b--\r\n";
+    return ['ctype'=>'multipart/alternative; boundary="'.$b.'"', 'body'=>$body];
+}
 // Klien SMTP minimal (tanpa Composer/PHPMailer). Dukung SSL (465) & STARTTLS (587).
 function smtpSend($cfg, $to, $subject, $html){
     $host=$cfg['host']??''; $port=(int)($cfg['port']??465); $secure=strtolower($cfg['secure']??'ssl');
@@ -666,14 +677,15 @@ function smtpSend($cfg, $to, $subject, $html){
     if($code($cmd('RCPT TO:<'.$to.'>'))[0]!=='2'){ fclose($fp); return false; }
     if($code($cmd('DATA'))!=='354'){ fclose($fp); return false; }
     $dom = substr(strrchr($fromEmail,'@'),1) ?: 'localhost';
+    $mime = _buildMime($html);
     $headers ='From: '._mimeEnc($fromName).' <'.$fromEmail.">\r\n";
     $headers.='To: <'.$to.">\r\n";
     $headers.='Subject: '._mimeEnc($subject)."\r\n";
     $headers.='Date: '.date('r')."\r\n";
     $headers.='Message-ID: <'.bin2hex(random_bytes(16)).'@'.$dom.">\r\n";  // wajib untuk Gmail
     $headers.="MIME-Version: 1.0\r\n";
-    $headers.="Content-Type: text/html; charset=UTF-8\r\n";
-    $body=preg_replace('/^\./m','..',$html);                  // dot-stuffing
+    $headers.='Content-Type: '.$mime['ctype']."\r\n";
+    $body=preg_replace('/^\./m','..',$mime['body']);          // dot-stuffing
     $res=$cmd($headers."\r\n".$body."\r\n.");
     $cmd('QUIT'); fclose($fp);
     return $code($res)==='250';
