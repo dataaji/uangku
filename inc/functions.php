@@ -690,3 +690,48 @@ function smtpSend($cfg, $to, $subject, $html){
     $cmd('QUIT'); fclose($fp);
     return $code($res)==='250';
 }
+
+// ── Hari libur nasional Indonesia (API + cache per tahun) ────
+function _httpGet($url,$timeout=8){
+    if(function_exists('curl_init')){
+        $ch=curl_init($url);
+        curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>$timeout,CURLOPT_SSL_VERIFYPEER=>false,CURLOPT_USERAGENT=>'Uangku']);
+        $r=curl_exec($ch); curl_close($ch); return $r?:null;
+    }
+    $ctx=stream_context_create(['http'=>['timeout'=>$timeout]]);
+    return @file_get_contents($url,false,$ctx)?:null;
+}
+// Kembalikan map ['Y-m-d' => 'Nama libur'] (libur nasional / tanggal merah)
+function getHariLibur($year){
+    static $cache=[];
+    $year=(int)$year; if(isset($cache[$year])) return $cache[$year];
+    $dir=__DIR__.'/../uploads'; $file=$dir.'/libur_'.$year.'.json';
+    if(is_file($file) && (time()-filemtime($file) < 30*86400)){
+        $d=json_decode(@file_get_contents($file),true);
+        if(is_array($d)) return $cache[$year]=$d;
+    }
+    $map=[];
+    // Sumber 1: api-harilibur (punya flag is_national_holiday)
+    $arr=json_decode((string)_httpGet('https://api-harilibur.vercel.app/api?year='.$year,6),true);
+    if(is_array($arr) && $arr){
+        foreach($arr as $h){
+            if(empty($h['holiday_date']) || empty($h['is_national_holiday'])) continue;
+            $map[date('Y-m-d',strtotime($h['holiday_date']))] = $h['holiday_name'] ?? 'Libur Nasional';
+        }
+    }
+    // Sumber 2 (cadangan): dayoffapi
+    if(!$map){
+        $arr2=json_decode((string)_httpGet('https://dayoffapi.vercel.app/api?year='.$year,6),true);
+        if(is_array($arr2)) foreach($arr2 as $h){
+            if(empty($h['tanggal']) || !empty($h['is_cuti'])) continue;
+            $map[date('Y-m-d',strtotime($h['tanggal']))] = $h['keterangan'] ?? 'Libur Nasional';
+        }
+    }
+    if($map){ ksort($map); if(is_dir($dir) && is_writable($dir)) @file_put_contents($file,json_encode($map)); }
+    if(!$map){ // fallback: libur tanggal tetap (Masehi)
+        foreach([[1,1,'Tahun Baru Masehi'],[5,1,'Hari Buruh Internasional'],[6,1,'Hari Lahir Pancasila'],[8,17,'Hari Kemerdekaan RI'],[12,25,'Hari Raya Natal']] as [$m,$d,$n])
+            $map[sprintf('%04d-%02d-%02d',$year,$m,$d)]=$n;
+        ksort($map);
+    }
+    return $cache[$year]=$map;
+}

@@ -2,6 +2,7 @@
 $cb=(int)($_GET['cb']??date('n')); $cy=(int)($_GET['cy']??date('Y'));
 $selHari=(int)($_GET['hari']??date('j'));
 $events=getCalEvents($pdo,$cb,$cy);
+$libur=getHariLibur($cy);   // ['Y-m-d'=>'Nama libur'] — tanggal merah Indonesia
 $firstDow=(int)date('w',mktime(0,0,0,$cb,1,$cy)); $daysIn=(int)date('t',mktime(0,0,0,$cb,1,$cy));
 $selHari=min(max(1,$selHari),$daysIn);
 $selTgl=sprintf('%04d-%02d-%02d',$cy,$cb,$selHari);
@@ -76,7 +77,8 @@ topbar('Kalender & Agenda', 'Kerjaan, catatan & jadwal keuangan', $notifs, 'kale
 ?>
 <style>.picker{padding:9px 12px;border:1px solid var(--line);border-radius:11px;background:var(--card);font-family:var(--sans);font-weight:700;font-size:13.5px;color:var(--ink);cursor:pointer;outline:none}
 .sec-head{display:flex;justify-content:space-between;align-items:center;margin:18px 0 10px}
-.sec-head .lbl{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;letter-spacing:.5px;text-transform:uppercase}</style>
+.sec-head .lbl{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;letter-spacing:.5px;text-transform:uppercase}
+.cal-head span:first-child{color:var(--red)}</style>
 
 <div style="display:flex;gap:10px;align-items:center;margin-bottom:18px;flex-wrap:wrap">
   <a href="?page=kalender&cb=<?= $prevB ?>&cy=<?= $prevY ?>&hari=1" class="icon-btn"><?= icon('chevL',18) ?></a>
@@ -94,10 +96,15 @@ topbar('Kalender & Agenda', 'Kerjaan, catatan & jadwal keuangan', $notifs, 'kale
     <div class="cal-head"><?php foreach(['Min','Sen','Sel','Rab','Kam','Jum','Sab'] as $d): ?><span><?= $d ?></span><?php endforeach; ?></div>
     <div class="cal-grid">
       <?php for($i=0;$i<$firstDow;$i++): ?><div></div><?php endfor; ?>
-      <?php for($d=1;$d<=$daysIn;$d++): $ev=$events[$d]??[]; $isSel=($d==$selHari); $isTd=($isCur&&$d==$today); $cls='cal-cell'; if($isSel)$cls.=' sel'; elseif($isTd)$cls.=' today'; ?>
-        <a href="?page=kalender&cb=<?= $cb ?>&cy=<?= $cy ?>&hari=<?= $d ?>" class="<?= $cls ?>">
-          <span style="font-size:14px;font-weight:<?= $isSel||$isTd?'700':'400' ?>"><?= $d ?></span>
-          <div class="dot"><?php foreach(array_slice($ev,0,4) as $c): ?><i style="background:<?= $isSel?'#fff':$CAL_COLORS[$c] ?>"></i><?php endforeach; ?></div>
+      <?php for($d=1;$d<=$daysIn;$d++):
+        $ev=$events[$d]??[]; $isSel=($d==$selHari); $isTd=($isCur&&$d==$today);
+        $dStr=sprintf('%04d-%02d-%02d',$cy,$cb,$d); $dow=(int)date('w',mktime(0,0,0,$cb,$d,$cy));
+        $holName=$libur[$dStr]??null; $isRed=($dow===0||$holName);
+        $cls='cal-cell'; if($isSel)$cls.=' sel'; elseif($isTd)$cls.=' today';
+        $numColor=($isRed && !$isSel)?'color:var(--red);':''; ?>
+        <a href="?page=kalender&cb=<?= $cb ?>&cy=<?= $cy ?>&hari=<?= $d ?>" class="<?= $cls ?>"<?= $holName?' title="'.e($holName).'"':'' ?>>
+          <span style="font-size:14px;<?= $numColor ?>font-weight:<?= $isSel||$isTd||$isRed?'700':'400' ?>"><?= $d ?></span>
+          <div class="dot"><?php if($holName): ?><i style="background:<?= $isSel?'#fff':'var(--red)' ?>"></i><?php endif; foreach(array_slice($ev,0,3) as $c): ?><i style="background:<?= $isSel?'#fff':$CAL_COLORS[$c] ?>"></i><?php endforeach; ?></div>
         </a>
       <?php endfor; ?>
     </div>
@@ -106,11 +113,24 @@ topbar('Kalender & Agenda', 'Kerjaan, catatan & jadwal keuangan', $notifs, 'kale
         <span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--soft)"><span style="width:8px;height:8px;border-radius:4px;background:<?= $CAL_COLORS[$c] ?>"></span><?= $l ?></span>
       <?php endforeach; ?>
     </div>
+    <?php $liburBulan=array_filter($libur,fn($k)=>date('Y-n',strtotime($k))===$cy.'-'.$cb, ARRAY_FILTER_USE_KEY); ?>
+    <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px">
+      <div style="font-size:11.5px;font-weight:800;color:var(--red);letter-spacing:.5px;margin-bottom:8px">🔴 HARI LIBUR <?= strtoupper($NAMA_BULAN[$cb]) ?></div>
+      <?php if($liburBulan): foreach($liburBulan as $tg=>$nm): ?>
+        <div style="display:flex;gap:10px;align-items:flex-start;font-size:12.5px;margin-bottom:7px">
+          <span style="min-width:46px;font-weight:800;color:var(--red)"><?= date('j',strtotime($tg)) ?> <?= substr($NAMA_BULAN[$cb],0,3) ?></span>
+          <span style="color:var(--soft)"><?= e($nm) ?></span>
+        </div>
+      <?php endforeach; else: ?>
+        <div style="font-size:12px;color:var(--muted)">Tidak ada libur nasional bulan ini.</div>
+      <?php endif; ?>
+    </div>
   </div>
 
   <!-- Detail hari: Kerjaan / Catatan / Info -->
   <div>
     <div style="font-family:var(--serif);font-size:19px;font-weight:600;margin-bottom:4px"><?= tglIndo($selTgl) ?></div>
+    <?php if(isset($libur[$selTgl])): ?><div style="display:inline-flex;align-items:center;gap:7px;background:var(--redT);color:var(--red);font-size:12.5px;font-weight:800;padding:6px 12px;border-radius:10px;margin-bottom:10px">🔴 Libur: <?= e($libur[$selTgl]) ?></div><?php endif; ?>
 
     <!-- KERJAAN -->
     <div class="sec-head"><span class="lbl" style="color:var(--amber)"><?= icon('task',16,'var(--amber)') ?> Kerjaan · <?= count($tugasHari) ?></span>
