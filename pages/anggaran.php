@@ -93,7 +93,10 @@ function angCard($b,$periodeOpt,$isHist=false){ global $pdo;
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
         <div class="cat" style="width:42px;height:42px;font-size:21px;background:var(--card2)"><?= $w['emoji'] ?></div>
         <div style="flex:1;min-width:0"><div style="font-size:14.5px;font-weight:700"><?= e($w['nama']) ?></div><div style="font-family:var(--serif);font-size:18px;font-weight:600;color:var(--terra)"><?= rp($w['saldo']) ?></div></div>
-        <button class="mini-btn" onclick='editDompet(<?= json_encode($w,JSON_HEX_APOS|JSON_HEX_QUOT) ?>)' title="Edit"><?= icon('edit',15) ?></button>
+        <div class="card-actions">
+          <button class="mini-btn" onclick='editDompet(<?= json_encode($w,JSON_HEX_APOS|JSON_HEX_QUOT) ?>)' title="Edit"><?= icon('edit',15) ?></button>
+          <form method="post" action="actions.php" data-confirm="Hapus dompet <?= e($w['nama']) ?>? Transaksi terkait tetap ada (dompetnya jadi kosong)."><input type="hidden" name="action" value="delete_dompet"><input type="hidden" name="id" value="<?= $w['id'] ?>"><input type="hidden" name="back" value="?page=anggaran"><button class="mini-btn danger" title="Hapus"><?= icon('trash',15) ?></button></form>
+        </div>
       </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-dark btn-sm" style="flex:1;justify-content:center" onclick='openSaldoFor(<?= json_encode($w,JSON_HEX_APOS|JSON_HEX_QUOT) ?>,"tambah")'><?= icon('plus',13,'var(--bg)',2.5) ?> Isi</button>
