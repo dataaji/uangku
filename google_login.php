@@ -10,6 +10,7 @@ if (empty($GOOGLE['enabled'])) {
 
 $state = bin2hex(random_bytes(16));
 $_SESSION['g_state'] = $state;
+$_SESSION['g_keep'] = !empty($_GET['keep']) ? 1 : 0;   // pilihan "tetap login"
 
 $params = http_build_query([
     'client_id'     => $GOOGLE['client_id'],

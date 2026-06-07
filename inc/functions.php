@@ -610,3 +610,20 @@ function bulanKeTanggal($tglTarget){
     if($t<=$now) return 0;
     $d=$now->diff($t); return max(1,$d->y*12+$d->m+($d->d>0?1:0));
 }
+
+// ── Email sederhana (untuk reset PIN) ────────────────────────
+function maskEmail($e){
+    $p=explode('@',$e); if(count($p)!==2) return $e;
+    $n=$p[0]; $vis=substr($n,0,1).(strlen($n)>2?str_repeat('*',min(4,strlen($n)-1)):'*');
+    return $vis.'@'.$p[1];
+}
+function sendMail($to,$subject,$html){
+    $domain = $_SERVER['HTTP_HOST'] ?? 'uangku.ledgerid.site';
+    $domain = preg_replace('/^www\./','',$domain);
+    $from = 'Uangku <noreply@'.$domain.'>';
+    $headers = "MIME-Version: 1.0\r\n".
+               "Content-Type: text/html; charset=UTF-8\r\n".
+               "From: $from\r\n".
+               "Reply-To: $from\r\n";
+    return @mail($to, $subject, $html, $headers);
+}

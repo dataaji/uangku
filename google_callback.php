@@ -60,5 +60,7 @@ if (!$u) {
 
 session_regenerate_id(true);   // cegah session fixation
 $_SESSION['uid'] = $uid;
+if (!empty($_SESSION['g_keep'])) rememberCreate($pdo, $uid);   // "tetap login"
+unset($_SESSION['g_keep']);
 header('Location: index.php');
 exit;

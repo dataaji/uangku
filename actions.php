@@ -452,9 +452,12 @@ case 'update_password': {
     redirect($back.'&msg=pw');
 }
 case 'set_pin': {
+    if(isset($_POST['hapus'])){ $pdo->prepare('UPDATE users SET pin=NULL WHERE id=?')->execute([$U]); $_SESSION['pin_ok']=1; flash('PIN dimatikan.'); redirect($back); }
     $pin=preg_replace('/\D/','',$_POST['pin']??'');
-    $pdo->prepare('UPDATE users SET pin=? WHERE id=?')->execute([$pin?password_hash($pin,PASSWORD_DEFAULT):null,$U]);
+    if(strlen($pin)!==6){ flash('PIN harus tepat 6 angka.','err'); redirect($back); }
+    $pdo->prepare('UPDATE users SET pin=? WHERE id=?')->execute([password_hash($pin,PASSWORD_DEFAULT),$U]);
     $_SESSION['pin_ok']=1; // jangan langsung terkunci setelah set/ubah PIN
+    flash('PIN berhasil disimpan.');
     redirect($back);
 }
 case 'toggle_dark': { $pdo->prepare('UPDATE users SET dark_mode=1-dark_mode WHERE id=?')->execute([$U]); redirect($back); }

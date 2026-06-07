@@ -44,9 +44,15 @@ $msg=$_GET['msg']??'';
       <form method="post" action="actions.php">
         <input type="hidden" name="action" value="set_pin"><input type="hidden" name="back" value="?page=pengaturan">
         <div style="font-size:14px;font-weight:700;margin-bottom:4px">🔒 PIN Aplikasi <?= $punyaPin?'<span class="pill" style="background:var(--greenT);color:var(--green);font-size:10px">aktif</span>':'' ?></div>
-        <div style="font-size:12px;color:var(--soft);margin-bottom:12px">Isi 4-6 digit, atau kosongkan untuk menonaktifkan.</div>
-        <div style="display:flex;gap:8px"><input type="text" name="pin" inputmode="numeric" maxlength="6" placeholder="••••" style="flex:1;padding:11px 14px;border:1px solid var(--line);border-radius:11px;background:var(--card);color:var(--ink);font-size:18px;letter-spacing:6px;text-align:center;outline:none"><button class="btn btn-ghost btn-sm">Simpan PIN</button></div>
+        <div style="font-size:12px;color:var(--soft);margin-bottom:12px">Wajib <b>tepat 6 angka</b>. PIN diminta tiap aplikasi dibuka ulang.</div>
+        <div style="display:flex;gap:8px"><input type="text" name="pin" inputmode="numeric" maxlength="6" minlength="6" pattern="\d{6}" placeholder="••••••" style="flex:1;padding:11px 14px;border:1px solid var(--line);border-radius:11px;background:var(--card);color:var(--ink);font-size:18px;letter-spacing:6px;text-align:center;outline:none"><button class="btn btn-ghost btn-sm"><?= $punyaPin?'Ubah PIN':'Simpan PIN' ?></button></div>
       </form>
+      <?php if($punyaPin): ?>
+      <form method="post" action="actions.php" data-confirm="Matikan PIN aplikasi? Aplikasi tidak akan terkunci lagi." data-confirm-icon="🔓" data-confirm-ok="Ya, matikan" style="margin-top:10px">
+        <input type="hidden" name="action" value="set_pin"><input type="hidden" name="hapus" value="1"><input type="hidden" name="back" value="?page=pengaturan">
+        <button class="btn btn-ghost btn-sm" style="color:var(--red)">Matikan PIN</button>
+      </form>
+      <?php endif; ?>
     </div>
 
     <div class="eyebrow">Preferensi</div>

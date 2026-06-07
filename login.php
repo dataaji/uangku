@@ -9,7 +9,10 @@ $gerrMsg = ['setup'=>'Login Google belum dikonfigurasi (isi Client ID di inc/goo
 // Login email/password — cadangan (admin darurat) kalau Google bermasalah
 $err = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (doLogin($pdo, $_POST['email'] ?? '', $_POST['password'] ?? '')) { header('Location: index.php'); exit; }
+    if (doLogin($pdo, $_POST['email'] ?? '', $_POST['password'] ?? '')) {
+        if (!empty($_POST['remember'])) rememberCreate($pdo, (int)$_SESSION['uid']);
+        header('Location: index.php'); exit;
+    }
     $err = 'Email atau password salah.';
 }
 if (currentUser($pdo)) { header('Location: index.php'); exit; }
@@ -44,6 +47,8 @@ if (currentUser($pdo)) { header('Location: index.php'); exit; }
   .gbtn:hover{background:#f7f8fa}
   .orline{display:flex;align-items:center;gap:12px;margin:18px 0;color:var(--muted);font-size:12px}
   .orline::before,.orline::after{content:'';flex:1;height:1px;background:var(--line)}
+  .keep{display:flex;align-items:center;gap:8px;justify-content:center;margin-top:14px;font-size:12.5px;color:var(--soft);cursor:pointer}
+  .keep input{width:16px;height:16px;accent-color:var(--terra)}
 </style>
 </head>
 <body>
@@ -53,10 +58,12 @@ if (currentUser($pdo)) { header('Location: index.php'); exit; }
   <?php if ($gerrMsg): ?><div class="err" style="background:var(--amberT);color:#8a6d1a"><?= e($gerrMsg) ?></div><?php endif; ?>
 
   <!-- Masuk dengan Google -->
-  <a href="google_login.php" class="gbtn">
+  <a href="google_login.php" id="gbtn" class="gbtn">
     <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.3-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.5 0 10.5-2.1 14.2-5.6l-6.6-5.5C29.6 34.5 26.9 36 24 36c-5.2 0-9.6-3.3-11.2-8l-6.6 5.1C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4.1 5.5l6.6 5.5C42.5 36 44 30.5 44 24c0-1.3-.1-2.3-.4-3.5z"/></svg>
     Masuk dengan Google
   </a>
+
+  <label class="keep"><input type="checkbox" id="keep" checked onchange="syncKeep()"><span>Tetap login (tak perlu masuk tiap buka aplikasi)</span></label>
 
   <!-- Cadangan: login email/password (admin darurat) -->
   <div id="adm-link" style="text-align:center;margin-top:16px;<?= $err?'display:none':'' ?>">
@@ -66,12 +73,21 @@ if (currentUser($pdo)) { header('Location: index.php'); exit; }
     <div class="orline"><span>login email</span></div>
     <?php if ($err): ?><div class="err"><?= e($err) ?></div><?php endif; ?>
     <form method="post">
+      <input type="hidden" name="remember" id="keep-mirror" value="1">
       <div class="field"><label>Email</label><input type="email" name="email" placeholder="email@contoh.com" required></div>
       <div class="field"><label>Password</label><input type="password" name="password" placeholder="••••••••" required></div>
       <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:14px;font-size:15px;font-weight:800">Masuk</button>
     </form>
   </div>
 </div>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});</script>
+<script>
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+function syncKeep(){
+  var on=document.getElementById('keep').checked;
+  document.getElementById('gbtn').href = on ? 'google_login.php?keep=1' : 'google_login.php';
+  document.getElementById('keep-mirror').value = on ? '1' : '';
+}
+syncKeep();
+</script>
 </body>
 </html>
