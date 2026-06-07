@@ -454,13 +454,16 @@ function notifDibaca($pdo){
     $set=[]; $s=$pdo->prepare('SELECT notif_key FROM notif_dibaca WHERE user_id=?'); $s->execute([uid()]);
     foreach($s->fetchAll() as $r) $set[$r['notif_key']]=true; return $set;
 }
-// Pengingat bertahap: 7 → 3 → 0 hari. Tahap berikut hanya muncul
-// setelah tahap sebelumnya dibaca/dihapus. (+ tahap "telat" bila lewat)
+// Pengingat bertahap: tampil 1 tahap saja sesuai kedekatan (≤7 → ≤3 → ≤0 hari).
+// Begitu tahap aktif dibaca, notif HILANG; tahap lebih mendesak muncul saat harinya tiba.
+// (+ tahap "telat" bila sudah lewat)
 function stageNotif($targetTs,$prefix,$dibaca){
     $today=strtotime('today'); $days=(int)floor(($targetTs-$today)/86400);
     if($days<0){ $k=$prefix.'-late'; return isset($dibaca[$k])?null:[$k,$days]; }
-    foreach([7,3,0] as $t){ if($days<=$t){ $k=$prefix.'-'.$t; if(!isset($dibaca[$k])) return [$k,$days]; } }
-    return null;
+    $stage=null; foreach([0,3,7] as $t){ if($days<=$t){ $stage=$t; break; } }
+    if($stage===null) return null;                       // masih lebih dari 7 hari
+    $k=$prefix.'-'.$stage;
+    return isset($dibaca[$k]) ? null : [$k,$days];
 }
 function getNotifs($pdo,$bulan,$tahun){
     $dibaca=notifDibaca($pdo); $notifs=[];
