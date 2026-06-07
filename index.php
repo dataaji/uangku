@@ -38,13 +38,15 @@ $BNAV = [['beranda','Beranda','home'],['transaksi','Analisa','chart'],['kalender
 <meta name="theme-color" content="<?= $dark ? '#0f141c' : '#eef1f4' ?>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="assets/style.css?v=18">
+<link rel="stylesheet" href="assets/style.css?v=19">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
 <script>
   // pulihkan status sidebar collapse & mode gelap sebelum render (anti-flash putih)
   if(localStorage.getItem('sb')==='1') document.documentElement.classList.add('pre-collapsed');
   if(localStorage.getItem('dk')==='1') document.documentElement.classList.add('dark');
+  // terapkan warna aksen pilihan user lebih awal (anti-flash)
+  try{var _ac=localStorage.getItem('accent'); if(_ac){var _s=document.createElement('style'); _s.id='accent-style'; _s.textContent=':root,body.dark{--terra:'+_ac+'}'; document.head.appendChild(_s);}}catch(e){}
 </script>
 <style>html.pre-collapsed body{--sb:74px}</style>
 </head>
@@ -134,6 +136,28 @@ function toggleDark(){
   var kn=document.getElementById('dark-knob'); if(kn)kn.style.left=on?'22px':'2.5px';
   fetch('actions.php',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'action=toggle_dark&_csrf='+encodeURIComponent(window.CSRF||'')}).catch(function(){});
 }
+window.CUR=<?= json_encode(curSym()) ?>;
+// Animasi hitung-naik untuk angka besar (elemen .cup data-v)
+function countUp(){
+  document.querySelectorAll('.cup').forEach(function(el){
+    if(el.dataset.done) return; el.dataset.done='1';
+    var finalTxt=el.textContent, to=parseFloat(el.dataset.v)||0, sym=(window.CUR||'Rp');
+    var neg=to<0, abs=Math.abs(to), dur=650, st=performance.now();
+    if(abs<1){ return; }
+    function step(t){ var p=Math.min(1,(t-st)/dur), v=abs*(1-Math.pow(1-p,3));
+      el.textContent=sym+(neg?'-':'')+Math.round(v).toLocaleString('id-ID');
+      if(p<1) requestAnimationFrame(step); else el.textContent=finalTxt; }
+    requestAnimationFrame(step);
+  });
+}
+// Pilih warna aksen tema (disimpan di perangkat)
+function setAccent(hex){
+  try{localStorage.setItem('accent',hex);}catch(e){}
+  var s=document.getElementById('accent-style'); if(!s){s=document.createElement('style');s.id='accent-style';document.head.appendChild(s);}
+  s.textContent=':root,body.dark{--terra:'+hex+'}';
+  document.querySelectorAll('.acc-sw').forEach(function(x){x.classList.toggle('on',x.dataset.c===hex);});
+}
+document.addEventListener('DOMContentLoaded',countUp);
 function openModal(id){ var m=document.getElementById(id); if(m){m.classList.add('open');document.body.style.overflow='hidden';} }
 function closeModal(id){ document.getElementById(id).classList.remove('open');document.body.style.overflow=''; }
 function fmtRupiah(el){ let v=el.value.replace(/\D/g,''); el.value=v.replace(/\B(?=(\d{3})+(?!\d))/g,'.'); }
@@ -169,9 +193,10 @@ function pickEmoji(grpEl, em, tint, warna){
   event.currentTarget.classList.add('on');
   if(warna){event.currentTarget.style.borderColor=warna;} else {event.currentTarget.style.borderColor='var(--terra)';}
   if(tint)event.currentTarget.style.background=tint;
-  var f=grpEl.parentElement.querySelector('input[data-emoji]'); if(f)f.value=em;
-  var ft=grpEl.parentElement.querySelector('input[data-tint]'); if(ft&&tint)ft.value=tint;
-  var fw=grpEl.parentElement.querySelector('input[data-warna]'); if(fw&&warna)fw.value=warna;
+  var scope=grpEl.closest('form')||grpEl.parentElement;
+  var f=scope.querySelector('input[data-emoji]'); if(f)f.value=em;
+  var ft=scope.querySelector('input[data-tint]'); if(ft&&tint)ft.value=tint;
+  var fw=scope.querySelector('input[data-warna]'); if(fw&&warna)fw.value=warna;
 }
 if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 // Kunci menu bawah ke area terlihat (atasi bar alamat HP yang bikin menu "turun")

@@ -122,7 +122,7 @@ function angCard($b,$periodeOpt,$isHist=false){ global $pdo;
 <div class="balance" style="margin-bottom:22px">
   <div class="glow"></div>
   <span class="lbl" style="position:relative">TOTAL ANGGARAN</span>
-  <div style="font-family:var(--serif);font-size:32px;font-weight:600;margin-top:6px;position:relative"><?= rp($totPakai) ?> <span style="font-size:15px;color:#9fb0c9;font-family:var(--sans)">/ <?= rpShort($totBatas) ?></span></div>
+  <div style="font-family:var(--serif);font-size:32px;font-weight:600;margin-top:6px;position:relative"><span class="cup" data-v="<?= (int)round($totPakai) ?>"><?= rp($totPakai) ?></span> <span style="font-size:15px;color:#9fb0c9;font-family:var(--sans)">/ <?= rpShort($totBatas) ?></span></div>
   <div class="prog" style="margin-top:14px;background:rgba(255,255,255,.12);height:8px;position:relative"><i style="width:<?= $totBatas?min(100,$totPakai/$totBatas*100):0 ?>%;background:var(--terra)"></i></div>
   <div style="font-size:12px;color:#aab8cc;margin-top:8px;position:relative"><?= count($aktif) ?> aman · <?= count($lewat) ?> terlampaui</div>
 </div>

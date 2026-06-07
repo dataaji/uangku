@@ -30,7 +30,7 @@ topbar("$salam, ".explode(' ',$me['nama'])[0].' 👋', tglIndo(date('Y-m-d')), $
 <div class="balance" style="margin-bottom:18px">
   <div class="glow"></div><div class="glow2"></div>
   <div style="display:flex;justify-content:space-between;align-items:center;position:relative"><span class="lbl">TOTAL SALDO</span><span style="font-size:18px">👛</span></div>
-  <div class="amt"><?= rp($saldoTotal) ?></div>
+  <div class="amt cup" data-v="<?= (int)round($saldoTotal) ?>"><?= rp($saldoTotal) ?></div>
   <div class="wallets">
     <?php if(!$dompet): ?><div style="font-size:13px;color:#aab8cc">Belum ada dompet — tambah di menu Anggaran/Pengaturan.</div><?php endif; ?>
     <?php foreach($dompet as $w): ?><div class="wallet"><div class="wn"><span style="font-size:14px"><?= $w['emoji'] ?></span><?= e($w['nama']) ?></div><div class="ws"><?= rpShort($w['saldo']) ?></div></div><?php endforeach; ?>

@@ -40,7 +40,7 @@ topbar('Tabungan', count($goals).' target aktif', $notifs, 'tabungan',
 <div class="balance" style="margin-bottom:22px">
   <div class="glow" style="background:radial-gradient(circle,rgba(22,160,107,.4),transparent 70%)"></div>
   <span class="lbl" style="position:relative">TOTAL TERKUMPUL 🐷</span>
-  <div style="font-family:var(--serif);font-size:34px;font-weight:600;margin-top:6px;position:relative"><?= rp($totSaved) ?></div>
+  <div style="font-family:var(--serif);font-size:34px;font-weight:600;margin-top:6px;position:relative"><span class="cup" data-v="<?= (int)round($totSaved) ?>"><?= rp($totSaved) ?></span></div>
   <div style="font-size:13px;color:#aab8cc;margin-top:4px;position:relative">dari total target <?= rp($totTarget) ?></div>
 </div>
 

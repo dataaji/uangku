@@ -56,6 +56,18 @@ $msg=$_GET['msg']??'';
         <div style="flex:1"><div style="font-size:14.5px;font-weight:600">Mode Gelap</div><div id="dark-state" style="font-size:12px;color:var(--soft);margin-top:1px"><?= $me['dark_mode']?'Aktif':'Nonaktif' ?></div></div>
         <span class="switch" id="dark-sw" style="background:<?= $me['dark_mode']?'var(--green)':'#d8cfbe' ?>"><i id="dark-knob" style="left:<?= $me['dark_mode']?'22px':'2.5px' ?>"></i></span>
       </div>
+      <div class="row" style="border-top:1px solid var(--line);align-items:flex-start">
+        <div class="cat" style="width:38px;height:38px;border-radius:12px;background:var(--card2);color:var(--terra)">🎨</div>
+        <div style="flex:1">
+          <div style="font-size:14.5px;font-weight:600">Warna Aksen</div>
+          <div style="font-size:12px;color:var(--soft);margin:1px 0 10px">Pilih warna utama aplikasi</div>
+          <div class="acc-list">
+            <?php foreach([['#ef6c2e','Oranye'],['#3b82f6','Biru'],['#16a06b','Hijau'],['#8b5cf6','Ungu'],['#e23d4e','Merah'],['#ec4899','Pink']] as $c): ?>
+              <button type="button" class="acc-sw" data-c="<?= $c[0] ?>" title="<?= $c[1] ?>" style="background:<?= $c[0] ?>" onclick="setAccent('<?= $c[0] ?>')"></button>
+            <?php endforeach; ?>
+          </div>
+        </div>
+      </div>
       <a href="?page=tentang" class="row" style="border-top:1px solid var(--line)">
         <div class="cat" style="width:38px;height:38px;border-radius:12px;background:var(--card2);color:var(--terra)">ℹ️</div>
         <div style="flex:1"><div style="font-size:14.5px;font-weight:600">Tentang &amp; Bantuan</div><div style="font-size:12px;color:var(--soft);margin-top:1px">Panduan singkat memakai aplikasi</div></div>
@@ -164,4 +176,6 @@ $msg=$_GET['msg']??'';
 <script>
 function openDompet(){document.getElementById('dp-title').textContent='Dompet Baru 👛';document.getElementById('dp-act').value='add_dompet';['dp-id','dp-nama','dp-saldo'].forEach(i=>document.getElementById(i).value='');openModal('m-dompet');}
 function editDompet(w){document.getElementById('dp-title').textContent='Edit Dompet';document.getElementById('dp-act').value='edit_dompet';document.getElementById('dp-id').value=w.id;document.getElementById('dp-nama').value=w.nama;document.getElementById('dp-saldo').value=Number(w.saldo).toLocaleString('id-ID');document.getElementById('dp-emoji').value=w.emoji;openModal('m-dompet');}
+// Tandai swatch warna aksen yang sedang aktif
+(function(){var cur=localStorage.getItem('accent')||'#ef6c2e';document.querySelectorAll('.acc-sw').forEach(function(x){x.classList.toggle('on',x.dataset.c===cur);});})();
 </script>
