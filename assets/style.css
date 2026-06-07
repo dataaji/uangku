@@ -78,7 +78,8 @@ body.sb-collapsed .sb-user{justify-content:center}
 
 /* ── Main ──────────────────────────────────────────── */
 #main{margin-left:var(--sb);min-height:100vh;min-height:100dvh;transition:margin-left .22s cubic-bezier(.2,.7,.3,1)}
-#content{width:100%;max-width:1640px;margin:0 auto;padding:32px 48px 80px}
+#content{width:100%;max-width:1640px;margin:0 auto;padding:32px 48px 80px;animation:pageIn .16s ease-out}
+@keyframes pageIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 @media(min-width:2100px){#content{max-width:1900px}}
 @media(max-width:1200px){#content{padding:28px 32px 70px}}
 

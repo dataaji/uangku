@@ -10,11 +10,11 @@ $hl=$_GET['hl']??'';                                     // sorot kategori (flas
 $txAll=getTransaksi($pdo,$filter,$dari?:null,$sampai?:null);
 if($kat) $txAll=array_values(array_filter($txAll,fn($t)=>$t['kategori']===$kat));
 if($q!==''){ $ql=mb_strtolower($q); $txAll=array_values(array_filter($txAll,fn($t)=>mb_strpos(mb_strtolower(($t['judul']??'').' '.($t['kategori']??'').' '.($t['dompet_nama']??'')),$ql)!==false)); }
-$katList=array_values(array_unique(array_column(getTransaksi($pdo,'semua'),'kategori')));
 $tx=array_slice($txAll,0,$limit);            // hanya tampilkan N teratas
 // ringkasan untuk rentang tanggal (jika dipakai)
 $rangeRing=($dari&&$sampai)?getRingkasan($pdo,$dari,$sampai):null;
-$all=getTransaksi($pdo,'semua');
+$all=getTransaksi($pdo,'semua');             // 1× ambil semua (utk hitung total + daftar kategori)
+$katList=array_values(array_unique(array_column($all,'kategori')));
 $ring=getRingkasan($pdo,$pa,$pb);
 // Perbandingan bulan ini vs bulan lalu
 $cmpCur =getRingkasan($pdo,date('Y-m-01'),date('Y-m-t'));
@@ -22,8 +22,6 @@ $cmpPrev=getRingkasan($pdo,date('Y-m-01',strtotime('first day of -1 month')),dat
 $pctChg=function($cur,$prev){ if($prev<=0) return $cur>0?100:0; return round(($cur-$prev)/$prev*100); };
 $spend=getSpendKategori($pdo,$pa,$pb);
 $spendTotal=array_sum(array_column($spend,'total'));
-$trend=getTrend($pdo,$bulan,$tahun,$periode==='tahun'?'tahun':'bulan');
-$maxT=0; foreach($trend as $t)$maxT=max($maxT,$t['in'],$t['out']); $maxT=$maxT?:1;
 
 // Ringkasan SEMUA menu
 $bdg=getAnggaranSemua($pdo); $bdgPakai=array_sum(array_column($bdg,'terpakai')); $bdgBatas=array_sum(array_column($bdg,'batas')); $bdgLewat=count(array_filter($bdg,fn($b)=>$b['lewat']));
