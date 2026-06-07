@@ -11,7 +11,7 @@
     <div class="card" style="overflow:hidden">
       <?php
       $help=[
-        ['🏠','Beranda','Ringkasan saldo, grafik pemasukan/pengeluaran, dan transaksi terbaru.'],
+        ['🏠','Dashboard','Ringkasan saldo, grafik pemasukan/pengeluaran, dan transaksi terbaru.'],
         ['📊','Analisa','Diagram donat per kategori, tren arus kas (garis/batang), histori, dan unduh laporan PDF/Excel.'],
         ['💼','Anggaran','Atur batas pengeluaran per kategori, kelola dompet, dan transfer antar dompet.'],
         ['🐷','Tabungan','Buat target tabungan, setor/tarik, dan pantau progres.'],
@@ -33,7 +33,7 @@
     <div class="card" style="overflow:hidden">
       <?php
       $faq=[
-        ['Bagaimana cara menambah transaksi?','Ketuk tombol "+ Tambah Transaksi" (sidebar) atau tombol bulat (+) di Beranda.'],
+        ['Bagaimana cara menambah transaksi?','Ketuk tombol "+ Tambah Transaksi" (sidebar) atau tombol bulat (+) di Dashboard.'],
         ['Apa beda Anggaran dan Tabungan?','Anggaran = batas pengeluaran per kategori. Tabungan = target dana yang ingin dikumpulkan.'],
         ['Bagaimana cara unduh laporan?','Buka Analisa → "Unduh PDF" → pilih periode & bagian → simpan PDF, atau "Unduh Excel/CSV".'],
         ['Data saya aman?','Tiap akun hanya bisa melihat datanya sendiri. Login memakai akun Google.'],

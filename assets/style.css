@@ -87,7 +87,9 @@ body.sb-collapsed .sb-user{justify-content:center}
 
 /* Topbar */
 .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:26px;gap:16px}
-.topbar h1{font-family:var(--serif);font-size:30px;font-weight:600;letter-spacing:-.6px}
+.topbar>div:first-child{min-width:0}
+.topbar h1{font-family:var(--serif);font-size:30px;font-weight:600;letter-spacing:-.6px;overflow-wrap:anywhere}
+.topbar-actions{flex-shrink:0}
 .topbar .sub{font-size:13px;color:var(--soft);margin-top:4px}
 .topbar-actions{display:flex;align-items:center;gap:10px}
 /* Profil di pojok kanan topbar */
