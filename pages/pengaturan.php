@@ -56,17 +56,6 @@ $msg=$_GET['msg']??'';
         <div style="flex:1"><div style="font-size:14.5px;font-weight:600">Mode Gelap</div><div id="dark-state" style="font-size:12px;color:var(--soft);margin-top:1px"><?= $me['dark_mode']?'Aktif':'Nonaktif' ?></div></div>
         <span class="switch" id="dark-sw" style="background:<?= $me['dark_mode']?'var(--green)':'#d8cfbe' ?>"><i id="dark-knob" style="left:<?= $me['dark_mode']?'22px':'2.5px' ?>"></i></span>
       </div>
-      <script>
-      function toggleDark(){
-        var on=!document.documentElement.classList.contains('dark');
-        document.documentElement.classList.toggle('dark',on); document.body.classList.toggle('dark',on);
-        try{localStorage.setItem('dk',on?'1':'0');}catch(e){}
-        document.getElementById('dark-state').textContent=on?'Aktif':'Nonaktif';
-        document.getElementById('dark-sw').style.background=on?'var(--green)':'#d8cfbe';
-        document.getElementById('dark-knob').style.left=on?'22px':'2.5px';
-        fetch('actions.php',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'action=toggle_dark&_csrf='+encodeURIComponent(window.CSRF||'')}).catch(function(){});
-      }
-      </script>
       <a href="?page=tentang" class="row" style="border-top:1px solid var(--line)">
         <div class="cat" style="width:38px;height:38px;border-radius:12px;background:var(--card2);color:var(--terra)">ℹ️</div>
         <div style="flex:1"><div style="font-size:14.5px;font-weight:600">Tentang &amp; Bantuan</div><div style="font-size:12px;color:var(--soft);margin-top:1px">Panduan singkat memakai aplikasi</div></div>

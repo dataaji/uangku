@@ -573,13 +573,19 @@ function topbar($title,$sub,$notifs,$page,$extra=''){
       </div>
       <div class="topbar-actions">
         <?= $extra ?>
-        <?php if($isDash): /* Tambah & notifikasi HANYA di dashboard */ ?>
-          <button class="btn btn-primary hide-mobile" onclick="openModal('m-tx')"><?= icon('plus',16,'#fff',2.5) ?> Tambah</button>
-          <button class="bell <?= $belum>0?'on':'' ?>" onclick="openModal('m-notif')" title="Notifikasi">
-            <?= icon('bell',20) ?>
-            <?php if($belum>0): ?><span class="badge"><?= $belum ?></span><?php endif; ?>
-          </button>
-        <?php endif; ?>
+        <?php if($isDash): ?><button class="btn btn-primary hide-mobile" onclick="openModal('m-tx')"><?= icon('plus',16,'#fff',2.5) ?> Tambah</button><?php endif; ?>
+        <?php $ME=$GLOBALS['ME']??[]; $dk=!empty($ME['dark_mode']); ?>
+        <!-- Mode gelap/terang -->
+        <button class="bell" onclick="toggleDark()" title="Mode gelap / terang"><span class="dark-toggle-ic" style="font-size:19px;line-height:1"><?= $dk?'☀️':'🌙' ?></span></button>
+        <!-- Notifikasi -->
+        <button class="bell <?= $belum>0?'on':'' ?>" onclick="openModal('m-notif')" title="Notifikasi">
+          <?= icon('bell',20) ?>
+          <?php if($belum>0): ?><span class="badge"><?= $belum ?></span><?php endif; ?>
+        </button>
+        <!-- Profil (pojok kanan) -->
+        <a class="topbar-prof" href="?page=pengaturan" title="Profil &amp; pengaturan">
+          <span class="av" style="<?= !empty($ME['avatar_img'])?'background-image:url(uploads/avatars/'.e($ME['avatar_img']).');background-size:cover;background-position:center':'' ?>"><?= !empty($ME['avatar_img'])?'':e($ME['avatar']??'🧑') ?></span>
+        </a>
       </div>
     </div>
     <?php

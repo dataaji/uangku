@@ -26,7 +26,7 @@ if (currentUser($pdo)) { header('Location: index.php'); exit; }
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=15">
+<link rel="stylesheet" href="assets/style.css?v=16">
 <style>
   body{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;
     background:linear-gradient(135deg,#1a2230,#2b3447)}

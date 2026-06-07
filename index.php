@@ -5,6 +5,7 @@ require_once __DIR__ . '/inc/icons.php';
 require_once __DIR__ . '/inc/auth.php';
 $me = requireLogin($pdo);
 $GLOBALS['UANGKU_CUR'] = $me['currency'] ?? 'Rp';
+$GLOBALS['ME'] = $me;   // dipakai topbar (profil/avatar/mode)
 prosesTransaksiRutin($pdo); prosesSetoranAuto($pdo);   // jalankan otomatis yang jatuh tempo
 
 $bulan = (int)($_GET['bulan'] ?? date('n'));
@@ -37,7 +38,7 @@ $BNAV = [['beranda','Beranda','home'],['transaksi','Analisa','chart'],['kalender
 <meta name="theme-color" content="<?= $dark ? '#0f141c' : '#eef1f4' ?>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="assets/style.css?v=15">
+<link rel="stylesheet" href="assets/style.css?v=16">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
 <script>
@@ -122,6 +123,17 @@ document.addEventListener('DOMContentLoaded',function(){
 });
 // sinkronkan preferensi mode gelap (dari server) untuk anti-flash di navigasi berikutnya
 try{ localStorage.setItem('dk','<?= $dark?1:0 ?>'); document.documentElement.classList.toggle('dark', <?= $dark?'true':'false' ?>); }catch(e){}
+// Ganti mode gelap/terang (dipakai tombol topbar & switch Pengaturan) — tanpa reload
+function toggleDark(){
+  var on=!document.documentElement.classList.contains('dark');
+  document.documentElement.classList.toggle('dark',on); document.body.classList.toggle('dark',on);
+  try{localStorage.setItem('dk',on?'1':'0');}catch(e){}
+  document.querySelectorAll('.dark-toggle-ic').forEach(function(el){el.textContent=on?'☀️':'🌙';});
+  var st=document.getElementById('dark-state'); if(st)st.textContent=on?'Aktif':'Nonaktif';
+  var sw=document.getElementById('dark-sw'); if(sw)sw.style.background=on?'var(--green)':'#d8cfbe';
+  var kn=document.getElementById('dark-knob'); if(kn)kn.style.left=on?'22px':'2.5px';
+  fetch('actions.php',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'action=toggle_dark&_csrf='+encodeURIComponent(window.CSRF||'')}).catch(function(){});
+}
 function openModal(id){ var m=document.getElementById(id); if(m){m.classList.add('open');document.body.style.overflow='hidden';} }
 function closeModal(id){ document.getElementById(id).classList.remove('open');document.body.style.overflow=''; }
 function fmtRupiah(el){ let v=el.value.replace(/\D/g,''); el.value=v.replace(/\B(?=(\d{3})+(?!\d))/g,'.'); }

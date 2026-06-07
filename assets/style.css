@@ -86,7 +86,11 @@ body.sb-collapsed .sb-user{justify-content:center}
 .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:26px;gap:16px}
 .topbar h1{font-family:var(--serif);font-size:30px;font-weight:600;letter-spacing:-.6px}
 .topbar .sub{font-size:13px;color:var(--soft);margin-top:4px}
-.topbar-actions{display:flex;align-items:center;gap:12px}
+.topbar-actions{display:flex;align-items:center;gap:10px}
+/* Profil di pojok kanan topbar */
+.topbar-prof{display:inline-flex;align-items:center;flex-shrink:0}
+.topbar-prof .av{width:46px;height:46px;border-radius:14px;background:var(--terra);color:#fff;display:flex;align-items:center;justify-content:center;font-size:21px;box-shadow:var(--shadow);overflow:hidden;transition:.15s}
+.topbar-prof:hover .av{transform:translateY(-1px)}
 
 /* Lonceng notif */
 .bell{position:relative;width:46px;height:46px;border-radius:14px;background:var(--card);border:1px solid var(--line);
