@@ -47,10 +47,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $step = 'kode';
         $code = preg_replace('/\D/', '', $_POST['kode'] ?? '');
         $new  = preg_replace('/\D/', '', $_POST['pin_baru'] ?? '');
+        $new2 = preg_replace('/\D/', '', $_POST['pin_baru2'] ?? '');
         $r = $_SESSION['pin_reset'] ?? null;
         if (!$r || time() > $r['exp']) { $err = 'Kode kedaluwarsa. Minta kode baru.'; $step = 'pin'; }
         elseif (!password_verify($code, $r['h'])) { $err = 'Kode salah.'; }
         elseif (strlen($new) !== 6) { $err = 'PIN baru harus tepat 6 angka.'; }
+        elseif ($new !== $new2) { $err = 'Konfirmasi PIN tidak cocok.'; }
         else {
             $pdo->prepare('UPDATE users SET pin=? WHERE id=?')->execute([password_hash($new, PASSWORD_DEFAULT), $me['id']]);
             unset($_SESSION['pin_reset']);
@@ -67,16 +69,17 @@ $dark = !empty($me['dark_mode']);
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="<?= $dark?'dark':'light' ?>">
 <title>Masukkan PIN — Uangku</title>
-<link rel="stylesheet" href="assets/style.css?v=23">
+<link rel="stylesheet" href="assets/style.css?v=24">
 <style>
   body{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;background:linear-gradient(135deg,#1a2230,#2b3447)}
   .pinbox{width:100%;max-width:340px;background:var(--bg);border-radius:26px;padding:34px 28px;box-shadow:0 30px 90px rgba(0,0,0,.4);text-align:center}
   .pinbox .ic{font-size:40px}
   .pinbox h1{font-family:var(--serif);font-size:22px;font-weight:600;margin:8px 0 4px}
   .pinbox p{font-size:13px;color:var(--soft);margin-bottom:20px}
-  .pinbox input{width:100%;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);font-size:26px;letter-spacing:10px;text-align:center;outline:none;font-family:var(--serif)}
-  .pinbox input:focus{border-color:var(--terra)}
-  .pinbox input.kode{font-size:22px;letter-spacing:8px;margin-bottom:10px}
+  .pinbox input{width:100%;padding:15px 16px;border:1.5px solid var(--line);border-radius:14px;background:var(--card2);color:var(--ink);font-size:24px;letter-spacing:8px;text-align:center;outline:none;font-family:var(--serif);transition:.15s;margin-bottom:11px}
+  .pinbox input:focus{border-color:var(--terra);background:var(--card);box-shadow:0 0 0 3px rgba(239,108,46,.16)}
+  .pinbox input::placeholder{letter-spacing:normal;font-size:15px;font-family:var(--sans);color:var(--muted);opacity:.85}
+  .pinbox input.kode{font-size:22px;letter-spacing:6px}
   .pinbox .err{background:var(--redT);color:var(--red);font-size:13px;font-weight:600;padding:9px;border-radius:11px;margin-bottom:14px}
   .pinbox .ok{background:var(--greenT);color:var(--green);font-size:13px;font-weight:600;padding:9px;border-radius:11px;margin-bottom:14px}
   .pinbox .lo{display:block;margin-top:16px;font-size:12px;color:var(--muted)}
@@ -93,9 +96,10 @@ $dark = !empty($me['dark_mode']);
     <?php if ($info): ?><div class="ok"><?= e($info) ?></div><?php endif; ?>
     <form method="post">
       <input type="hidden" name="mode" value="reset">
-      <input class="kode" type="text" name="kode" inputmode="numeric" maxlength="6" placeholder="Kode 6 digit" autofocus required>
-      <input type="password" name="pin_baru" inputmode="numeric" maxlength="6" minlength="6" pattern="\d{6}" placeholder="PIN baru (6 angka)" required>
-      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:14px;font-weight:800;margin-top:16px">Simpan PIN Baru</button>
+      <input class="kode" type="text" name="kode" inputmode="numeric" maxlength="6" placeholder="Kode dari email" autofocus required>
+      <input type="password" name="pin_baru" inputmode="numeric" maxlength="6" minlength="6" pattern="\d{6}" placeholder="PIN baru" required>
+      <input type="password" name="pin_baru2" inputmode="numeric" maxlength="6" minlength="6" pattern="\d{6}" placeholder="Ulangi PIN baru" required>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:14px;font-weight:800;margin-top:8px">Simpan PIN Baru</button>
     </form>
     <form method="post" style="margin-top:6px"><input type="hidden" name="mode" value="req"><button class="lupa" type="submit">Kirim ulang kode</button></form>
     <a href="pin.php" class="lo">← Kembali masukkan PIN</a>

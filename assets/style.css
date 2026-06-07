@@ -324,3 +324,9 @@ body.dark .tx-row.flash{animation:flashHLd 1.8s ease-out}
 .flash-ok{background:var(--greenT);color:var(--green)}
 .flash-err{background:var(--redT);color:var(--red)}
 @keyframes flashIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+
+/* Form atur PIN (Pengaturan) — modern & rapi */
+.pin-set{display:flex;flex-direction:column;gap:9px}
+.pin-set input{width:100%;padding:13px 15px;border:1.5px solid var(--line);border-radius:12px;background:var(--card2);color:var(--ink);font-size:20px;letter-spacing:6px;text-align:center;outline:none;transition:.15s}
+.pin-set input::placeholder{letter-spacing:normal;font-size:14px;color:var(--muted);opacity:.85}
+.pin-set input:focus{border-color:var(--terra);background:var(--card);box-shadow:0 0 0 3px rgba(239,108,46,.16)}

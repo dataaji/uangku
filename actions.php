@@ -453,8 +453,9 @@ case 'update_password': {
 }
 case 'set_pin': {
     if(isset($_POST['hapus'])){ $pdo->prepare('UPDATE users SET pin=NULL WHERE id=?')->execute([$U]); $_SESSION['pin_ok']=1; flash('PIN dimatikan.'); redirect($back); }
-    $pin=preg_replace('/\D/','',$_POST['pin']??'');
+    $pin=preg_replace('/\D/','',$_POST['pin']??''); $pin2=preg_replace('/\D/','',$_POST['pin2']??'');
     if(strlen($pin)!==6){ flash('PIN harus tepat 6 angka.','err'); redirect($back); }
+    if($pin!==$pin2){ flash('Konfirmasi PIN tidak cocok.','err'); redirect($back); }
     $pdo->prepare('UPDATE users SET pin=? WHERE id=?')->execute([password_hash($pin,PASSWORD_DEFAULT),$U]);
     $_SESSION['pin_ok']=1; // jangan langsung terkunci setelah set/ubah PIN
     flash('PIN berhasil disimpan.');
