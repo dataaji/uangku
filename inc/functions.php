@@ -618,6 +618,13 @@ function maskEmail($e){
     return $vis.'@'.$p[1];
 }
 function sendMail($to,$subject,$html){
+    // 1) Pakai SMTP kalau dikonfigurasi (inc/smtp_config.php, dibuat manual di server)
+    $cfgFile = __DIR__.'/smtp_config.php';
+    if (is_file($cfgFile)) {
+        $SMTP = null; include $cfgFile;   // file mengisi $SMTP
+        if (!empty($SMTP['enabled'])) return smtpSend($SMTP, $to, $subject, $html);
+    }
+    // 2) Fallback: fungsi mail() bawaan PHP
     $domain = $_SERVER['HTTP_HOST'] ?? 'uangku.ledgerid.site';
     $domain = preg_replace('/^www\./','',$domain);
     $from = 'Uangku <noreply@'.$domain.'>';
@@ -626,4 +633,45 @@ function sendMail($to,$subject,$html){
                "From: $from\r\n".
                "Reply-To: $from\r\n";
     return @mail($to, $subject, $html, $headers);
+}
+function _mimeEnc($s){ return '=?UTF-8?B?'.base64_encode($s).'?='; }
+// Klien SMTP minimal (tanpa Composer/PHPMailer). Dukung SSL (465) & STARTTLS (587).
+function smtpSend($cfg, $to, $subject, $html){
+    $host=$cfg['host']??''; $port=(int)($cfg['port']??465); $secure=strtolower($cfg['secure']??'ssl');
+    $user=$cfg['user']??''; $pass=$cfg['pass']??'';
+    $fromEmail=$cfg['from_email']??$user; $fromName=$cfg['from_name']??'Uangku';
+    if(!$host||!$user) return false;
+    $timeout=15;
+    $remote=($secure==='ssl'?'ssl://':'').$host.':'.$port;
+    $ctx=stream_context_create(['ssl'=>['verify_peer'=>false,'verify_peer_name'=>false,'allow_self_signed'=>true]]);
+    $fp=@stream_socket_client($remote,$errno,$errstr,$timeout,STREAM_CLIENT_CONNECT,$ctx);
+    if(!$fp) return false;
+    stream_set_timeout($fp,$timeout);
+    $read=function() use($fp){ $d=''; while(($str=fgets($fp,515))!==false){ $d.=$str; if(strlen($str)<4 || $str[3]===' ') break; } return $d; };
+    $cmd =function($c) use($fp,$read){ fwrite($fp,$c."\r\n"); return $read(); };
+    $code=function($r){ return substr(trim($r),0,3); };
+    if($code($read())!=='220'){ fclose($fp); return false; }
+    $ehloName=preg_replace('/[^a-z0-9.\-]/i','',$_SERVER['HTTP_HOST']??'localhost') ?: 'localhost';
+    $cmd('EHLO '.$ehloName);
+    if($secure==='tls'){
+        if($code($cmd('STARTTLS'))!=='220'){ fclose($fp); return false; }
+        if(!@stream_socket_enable_crypto($fp,true,STREAM_CRYPTO_METHOD_TLS_CLIENT)){ fclose($fp); return false; }
+        $cmd('EHLO '.$ehloName);
+    }
+    if($code($cmd('AUTH LOGIN'))!=='334'){ fclose($fp); return false; }
+    $cmd(base64_encode($user));
+    if($code($cmd(base64_encode($pass)))!=='235'){ fclose($fp); return false; }   // auth gagal
+    if($code($cmd('MAIL FROM:<'.$fromEmail.'>'))!=='250'){ fclose($fp); return false; }
+    if($code($cmd('RCPT TO:<'.$to.'>'))[0]!=='2'){ fclose($fp); return false; }
+    if($code($cmd('DATA'))!=='354'){ fclose($fp); return false; }
+    $headers ='From: '._mimeEnc($fromName).' <'.$fromEmail.">\r\n";
+    $headers.='To: <'.$to.">\r\n";
+    $headers.='Subject: '._mimeEnc($subject)."\r\n";
+    $headers.='Date: '.date('r')."\r\n";
+    $headers.="MIME-Version: 1.0\r\n";
+    $headers.="Content-Type: text/html; charset=UTF-8\r\n";
+    $body=preg_replace('/^\./m','..',$html);                  // dot-stuffing
+    $res=$cmd($headers."\r\n".$body."\r\n.");
+    $cmd('QUIT'); fclose($fp);
+    return $code($res)==='250';
 }

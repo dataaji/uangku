@@ -1,6 +1,7 @@
 # ── Rahasia: JANGAN diunggah, dibuat manual di server ──
 /inc/db.php
 /inc/google_config.php
+/inc/smtp_config.php
 
 # ── File setup/DB (tidak perlu di hosting; jalankan sekali via phpMyAdmin) ──
 *.sql
