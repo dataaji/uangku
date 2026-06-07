@@ -158,6 +158,41 @@ case 'bayar_langganan': {  // LANGGANAN: tandai lunas + potong rekening + catat 
     } redirect($back);
 }
 
+// ════════════ PIUTANG (orang berhutang ke kita) ════════════
+case 'add_piutang': {   // Catat piutang: uang keluar dari rekening kita
+    $nama=str_('nama'); $total=num('total'); $w=dompetById($pdo,$U,$_POST['dompet_id']??0);
+    $tempo=($_POST['tempo_tgl']??'')?:null; $catatan=str_('catatan');
+    if($nama && $total>0){
+        if(!$w){ flash('Pilih dulu dompet sumber uangnya.','err'); redirect($back); }
+        if((float)$w['saldo'] < $total){ flash('Saldo '.$w['nama'].' tidak cukup (tersisa '.rp($w['saldo']).').','err'); redirect($back); }
+        $tgl = $tempo ? (int)date('j',strtotime($tempo)) : (int)date('j');
+        $pdo->prepare('UPDATE dompet SET saldo=saldo-? WHERE id=? AND user_id=?')->execute([$total,$w['id'],$U]);
+        $pdo->prepare('INSERT INTO tagihan (user_id,emoji,tint,nama,deskripsi,jumlah,tgl_jatuh_tempo,jenis,total,terbayar,catatan,berulang,tenor,ingatkan,selesai_tgl) VALUES (?,?,?,?,?,?,?,?,?,0,?,0,0,?,?)')
+            ->execute([$U,'🤝','#e3ecf6',$nama,'Dari '.$w['nama'],$total,$tgl,'piutang',$total,$catatan,$tempo?1:0,$tempo]);
+        flash('Dicatat: '.$nama.' berhutang '.rp($total).' (uang keluar dari '.$w['nama'].').');
+    } redirect($back);
+}
+case 'edit_piutang': {  // ubah catatan piutang (tidak memindahkan uang)
+    $id=(int)$_POST['id']; $nama=str_('nama'); $tempo=($_POST['tempo_tgl']??'')?:null;
+    $tgl=$tempo?(int)date('j',strtotime($tempo)):(int)date('j');
+    $pdo->prepare('UPDATE tagihan SET nama=?,catatan=?,selesai_tgl=?,tgl_jatuh_tempo=?,ingatkan=? WHERE id=? AND user_id=? AND jenis=\'piutang\'')
+        ->execute([$nama,str_('catatan'),$tempo,$tgl,$tempo?1:0,$id,$U]);
+    redirect($back);
+}
+case 'bayar_piutang': {  // Dia melunasi: uang balik ke rekening kita
+    $id=(int)$_POST['id']; $bayar=num('bayar'); $w=dompetById($pdo,$U,$_POST['dompet_id']??0);
+    $s=$pdo->prepare('SELECT * FROM tagihan WHERE id=? AND user_id=? AND jenis=\'piutang\''); $s->execute([$id,$U]); $b=$s->fetch();
+    if($b && $bayar>0){
+        $baru=min($b['total'],$b['terbayar']+$bayar); $nyata=$baru-(float)$b['terbayar'];
+        if($nyata<=0){ flash('Piutang ini sudah lunas.','err'); redirect($back); }
+        if(!$w){ flash('Pilih dulu dompet tujuan uang masuk.','err'); redirect($back); }
+        $lunas=$baru>=$b['total']?1:0;
+        $pdo->prepare('UPDATE tagihan SET terbayar=?,sudah_bayar=? WHERE id=? AND user_id=?')->execute([$baru,$lunas,$id,$U]);
+        $pdo->prepare('UPDATE dompet SET saldo=saldo+? WHERE id=? AND user_id=?')->execute([$nyata,$w['id'],$U]);
+        flash($b['nama'].' mengembalikan '.rp($nyata).' ke '.$w['nama'].'.');
+    } redirect($back);
+}
+
 // ════════════ TUGAS (KERJAAN) ════════════
 case 'add_tugas': {
     if(str_('judul')) $pdo->prepare('INSERT INTO tugas (user_id,judul,catatan,tanggal,waktu,prioritas) VALUES (?,?,?,?,?,?)')
