@@ -399,7 +399,7 @@ function hitungCicil(){
   else box.textContent='📅 Estimasi: isi total hutang & jumlah/bulan';
 }
 window.afterJadwalToggle=function(p){ if(p==='tg') hitungCicil(); };
-document.addEventListener('DOMContentLoaded',function(){var s=document.getElementById('tg-selesai');if(s)s.addEventListener('change',hitungCicil);});
+(function(){var s=document.getElementById('tg-selesai');if(s)s.addEventListener('change',hitungCicil);})();
 function openTagihan(){
   _tgEdit=false;
   document.getElementById('tg-title').textContent='Tagihan Baru 💡';

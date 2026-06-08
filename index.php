@@ -119,13 +119,14 @@ $BNAV = [['beranda','Dashboard','home'],['transaksi','Analisa','chart'],['kalend
 <script>
 // Token CSRF — disuntik otomatis ke semua form POST
 window.CSRF=<?= json_encode(csrf_token()) ?>;
-document.addEventListener('DOMContentLoaded',function(){
+window.injectCSRF=function(){
   document.querySelectorAll('form').forEach(function(f){
     if((f.getAttribute('method')||'').toLowerCase()==='post' && !f.querySelector('input[name="_csrf"]')){
       var i=document.createElement('input'); i.type='hidden'; i.name='_csrf'; i.value=window.CSRF; f.appendChild(i);
     }
   });
-});
+};
+document.addEventListener('DOMContentLoaded',window.injectCSRF);
 // sinkronkan preferensi mode gelap (dari server) untuk anti-flash di navigasi berikutnya
 try{ localStorage.setItem('dk','<?= $dark?1:0 ?>'); document.documentElement.classList.toggle('dark', <?= $dark?'true':'false' ?>); }catch(e){}
 // Ganti mode gelap/terang (dipakai tombol topbar & switch Pengaturan) — tanpa reload
@@ -170,8 +171,8 @@ window.addEventListener('DOMContentLoaded',function(){ try{var y=sessionStorage.
 function toggleSidebar(){ document.body.classList.toggle('sb-collapsed'); localStorage.setItem('sb', document.body.classList.contains('sb-collapsed')?'1':'0'); }
 if(localStorage.getItem('sb')==='1') document.body.classList.add('sb-collapsed');
 document.documentElement.classList.remove('pre-collapsed');
-// modal: tutup klik backdrop
-document.querySelectorAll('.modal-bg').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m.id);}));
+// modal: tutup klik backdrop (delegasi → berlaku juga untuk konten yang dimuat tanpa reload)
+document.addEventListener('click',function(e){ if(e.target.classList&&e.target.classList.contains('modal-bg')) closeModal(e.target.id); });
 
 // ── Konfirmasi modern (ganti confirm bawaan) ──
 // Pakai: <form ... data-confirm="Pesan" data-confirm-type="danger|primary" data-confirm-icon="🗑️">
@@ -214,6 +215,52 @@ if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch
   vv.addEventListener('resize',fix); vv.addEventListener('scroll',fix);
   window.addEventListener('orientationchange',fix);
   setTimeout(fix,60); fix();
+})();
+
+// ── Navigasi tanpa reload (hilangkan progress bar/loading di APK) ──
+(function(){
+  function internal(a){
+    if(!a||a.target==='_blank'||a.hasAttribute('download')) return false;
+    var href=a.getAttribute('href')||'';
+    if(!href||href[0]==='#'||href.toLowerCase().indexOf('javascript:')===0) return false;
+    var url; try{url=new URL(a.href,location.href);}catch(e){return false;}
+    if(url.origin!==location.origin) return false;                       // link luar → biarkan
+    if(!/(^|\/)index\.php$/.test(url.pathname) && url.pathname!==location.pathname) return false; // file lain (logout, backup, dll)
+    return url.href;
+  }
+  var busy=false;
+  function runSwap(doc,cur){
+    cur.innerHTML=doc.querySelector('#content').innerHTML;
+    cur.querySelectorAll('script').forEach(function(old){var s=document.createElement('script');if(old.src)s.src=old.src;else s.textContent=old.textContent;old.parentNode.replaceChild(s,old);});
+    ['#sidebar .sb-nav','#bnav .inner'].forEach(function(sel){var n=doc.querySelector(sel),c=document.querySelector(sel);if(n&&c)c.innerHTML=n.innerHTML;});
+    var fab=document.getElementById('fab'); if(fab) fab.style.display=doc.querySelector('#fab')?'flex':'none';
+    if(doc.title) document.title=doc.title;
+    if(window.injectCSRF)window.injectCSRF();
+    if(window.countUp)window.countUp();
+  }
+  async function go(href,push){
+    if(busy) return; busy=true;
+    try{
+      var res=await fetch(href,{credentials:'same-origin',headers:{'X-Requested-With':'fetch'}});
+      var ct=res.headers.get('content-type')||'';
+      if(!res.ok || ct.indexOf('text/html')<0) throw 0;
+      var doc=new DOMParser().parseFromString(await res.text(),'text/html');
+      var cur=document.getElementById('content');
+      if(!doc.querySelector('#content')||!cur) throw 0;
+      if(push) history.pushState({},'',href);
+      if(document.startViewTransition){ await document.startViewTransition(function(){runSwap(doc,cur);}).finished.catch(function(){}); }
+      else runSwap(doc,cur);
+      window.scrollTo(0,0);
+    }catch(e){ location.href=href; }
+    busy=false;
+  }
+  document.addEventListener('click',function(ev){
+    if(ev.defaultPrevented||ev.button!==0||ev.metaKey||ev.ctrlKey||ev.shiftKey||ev.altKey) return;
+    var a=ev.target.closest&&ev.target.closest('a'); if(!a) return;
+    var href=internal(a); if(!href) return;
+    ev.preventDefault(); go(href,true);
+  });
+  window.addEventListener('popstate',function(){ go(location.href,false); });
 })();
 </script>
 </body>
